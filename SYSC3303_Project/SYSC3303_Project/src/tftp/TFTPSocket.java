@@ -74,5 +74,10 @@ public interface TFTPSocket {
 	 */
 	public void sendERROR(short errCode, String messsage, InetAddress host, int tid) throws TFTPException;
 	
+	
+	/**
+	 * Close the socket
+	 */
+	public void close();
 
 }

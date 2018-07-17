@@ -67,6 +67,14 @@ public final class TFTPDatagramSocket implements TFTPSocket {
 			throw new TFTPSocketException("Failed to receive TFTP packet", ie);
 		}
 	}
+	
+	
+	@Override
+	public void close() {
+		
+		backing.close();
+		
+	}
 
 
 	@Override

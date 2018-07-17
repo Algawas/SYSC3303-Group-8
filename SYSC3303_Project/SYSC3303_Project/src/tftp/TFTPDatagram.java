@@ -207,6 +207,11 @@ public final class TFTPDatagram implements TFTPPacket {
 		return backing.getPort();
 	}
 	
+	@Override
+	public int getLength() {
+		return backing.getLength();
+	}
+	
 	/*
 	 * PACKAGE METHODS 
 	 */

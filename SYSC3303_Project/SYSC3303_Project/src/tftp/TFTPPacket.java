@@ -76,4 +76,10 @@ public interface TFTPPacket {
 	 */
 	public int getTID();
 	
+	
+	/**
+	 * Get size of this TFTP packet
+	 */
+	public int getLength();
+	
 }
