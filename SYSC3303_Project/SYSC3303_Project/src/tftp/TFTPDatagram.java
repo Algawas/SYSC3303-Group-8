@@ -240,6 +240,9 @@ public final class TFTPDatagram implements TFTPPacket {
 		return req;
 	}
 	
+	public TFTPPacketType validate() throws TFTPPacketException {
+		return TFTPPacketValidator.validate(this);
+	}
 	
 	/**
 	 * Constructs a read request packet

@@ -82,4 +82,11 @@ public interface TFTPPacket {
 	 */
 	public int getLength();
 	
+	/**
+	 * Validates the format of a tftp packet, and returns its type if it is valid
+	 * @param packet
+	 * @return
+	 */
+	public TFTPPacketType validate() throws TFTPPacketException;
+	
 }
