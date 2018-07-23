@@ -30,6 +30,7 @@ public class TFTPFileSender {
 	
 	// TFTP socket to transmit the file
 	private TFTPSocket socket;
+	private boolean ownSocket;
 	
 	// Handle on the file we're reading
 	private String filePath;
@@ -58,7 +59,8 @@ public class TFTPFileSender {
 			this.destination = dest;
 			this.tid = tid;
 			this.localTid = -1;
-			
+			ownSocket = true;
+			buffer = new byte[512];
 	}
 	
 	
@@ -72,7 +74,14 @@ public class TFTPFileSender {
 		
 		this(path, destination, tid);
 		this.localTid = localTid;
+		ownSocket = true;
 		
+	}
+	
+	public TFTPFileSender(TFTPSocket sock, String path, InetAddress destination, int tid) {
+		this(path, destination, tid);
+		socket = sock;
+		ownSocket = false;
 	}
 	
 	
@@ -101,7 +110,9 @@ public class TFTPFileSender {
 		
 		file = new FileInputStream(filePath);
 		
-		socket = new TFTPDatagramSocket(localTid);
+		if (ownSocket) {
+			socket = new TFTPDatagramSocket(localTid);
+		}
 		
 	}
 	
@@ -112,7 +123,10 @@ public class TFTPFileSender {
 	 */
 	private void closeResources() throws IOException {
 		file.close();
-		socket.close();
+		
+		if (ownSocket) {
+			socket.close();
+		}
 		
 	}
 	

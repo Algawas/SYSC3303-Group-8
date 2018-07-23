@@ -42,7 +42,8 @@ public final class TFTPDatagram implements TFTPPacket {
 	private void setOffsetPayload(int offset, byte[] pld) throws TFTPPacketException {
 		
 		try {
-			body.put(pld, offset, pld.length);		// place the payload into the packet 
+			body.position(offset);
+			body.put(pld, 0, pld.length);		// place the payload into the packet 
 			backing.setLength(body.position());		// set the packet length to the end of the payload
 		} catch (BufferOverflowException be) {
 			throw new TFTPPacketException("Payload too big");

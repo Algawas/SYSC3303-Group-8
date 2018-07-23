@@ -62,9 +62,11 @@ public abstract class TFTPPacketValidator {
 		}
 		
 		// check that the packet is of the correct length
+		/* TODO: Disabled until server sends correct length ACKs
 		if (ack.getLength() != 4) {
 			throw new TFTPPacketException("This is not a valid ACK packet");
 		}
+		*/
 		
 		// check the block #
 		if (ack.getParameter() < 0) {
