@@ -156,7 +156,6 @@ public class ErrorSimulator implements Runnable {
 			}
 			
 			sendingToServer = !sendingToServer;
-			System.out.println(sendingToServer);
 		}
 		
 		tftpSocket.close();
@@ -377,22 +376,22 @@ public class ErrorSimulator implements Runnable {
 		}
 		
 		// shutdown option
-		selection = 0;
-		while (selection != 1) {
+		String shutdownCommand = "";
+		while (!shutdownCommand.equals("quit")) {
 			System.out.println("\nSYSC 3033 TFTP Server");
-			System.out.println("1. Shutdown");
+			System.out.println("Type quit to shutdown");
 			System.out.println("Selection: ");
 			
-			selection = sc.nextInt();
+			shutdownCommand = sc.nextLine();
 		}
 		
-		if (selection == 1) {
-			sc.close();
+		if (shutdownCommand.equals("quit")) {
 			proxy.shutdown();
+			sc.close();
 			try {
-				proxyThread.join();
+				proxyThread.join(1000);
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
+				System.err.println(Globals.getErrorMessage("ErrorSimulator", "cannot close server thread"));
 				e.printStackTrace();
 				System.exit(-1);
 			}

@@ -120,23 +120,23 @@ public class Server implements Runnable {
 			System.exit(0);
 		}
 		
-		// shuttdown option
-		selection = 0;
-		while (selection != 1) {
+		// shutdown option
+		String shutdownCommand = "";
+		while (!shutdownCommand.equals("quit")) {
 			System.out.println("\nSYSC 3033 TFTP Server");
-			System.out.println("1. Shutdown");
+			System.out.println("Type quit to shutdown");
 			System.out.println("Selection: ");
 			
-			selection = sc.nextInt();
+			shutdownCommand = sc.nextLine();
 		}
 		
-		if (selection == 1) {
+		if (shutdownCommand.equals("quit")) {
 			server.shutdown();
 			sc.close();
 			try {
 				serverThread.join(1000);
 			} catch (InterruptedException e) {
-				System.err.println(Globals.getErrorMessage("Server Main", "cannot close server thread"));
+				System.err.println(Globals.getErrorMessage("Server", "cannot close server thread"));
 				e.printStackTrace();
 				System.exit(-1);
 			}

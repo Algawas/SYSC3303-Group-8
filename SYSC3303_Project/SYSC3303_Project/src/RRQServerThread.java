@@ -10,6 +10,7 @@ public class RRQServerThread extends Thread {
 	
 	private FileManager fileManager;
 	private ErrorHandler errorHandler;
+	private PacketHandler packetHandler;
 	
 	private InetAddress remoteAddress;
 	private int remotePort;
@@ -28,6 +29,7 @@ public class RRQServerThread extends Thread {
 		
 		remoteAddress = requestPacket.getRemoteAddress();
 		remotePort = requestPacket.getRemotePort();
+		packetHandler = new PacketHandler(tftpSocket, errorHandler, remoteAddress, remotePort);
 		
 		fileManager = new FileManager();
 		errorHandler = new ErrorHandler(tftpSocket);
@@ -39,86 +41,6 @@ public class RRQServerThread extends Thread {
 	public void run() {
 		handleRRQConnection();
 		cleanUp();
-	}
-	
-	private void sendDATAPacketToClient(DATAPacket dataPacket) {		
-		System.out.println(Globals.getVerboseMessage("RRQServerThread", 
-				String.format("sending DATA packet %d to client %s:%d", dataPacket.getBlockNumber(), dataPacket.getRemoteAddress(), dataPacket.getRemotePort())));
-		
-		// send DATA datagram packet
-		tftpSocket.send(dataPacket);
-	}
-	
-	private ACKPacket receiveACKPacketFromClient(short expectedBlockNumber) {	
-		ACKPacket ackPacket = null;
-		
-		while (ackPacket == null) {
-			TFTPPacket receivePacket = tftpSocket.receive();
-			
-			if (!receivePacket.getRemoteAddress().equals(remoteAddress) ||
-					receivePacket.getRemotePort() != remotePort) {
-				String errorMessage = String.format("Received packet from unknown source. Expected: %s:%d, Received: %s:%d", 
-						remoteAddress, remotePort, receivePacket.getRemoteAddress(), receivePacket.getRemotePort());
-				
-				System.err.println(Globals.getErrorMessage("RRQServerThread", errorMessage));	
-				errorHandler.sendUnknownTrasnferIDErrorPacket(errorMessage, remoteAddress, remotePort);
-				return null;
-			}
-		
-			if (receivePacket.getPacketType() == TFTPPacketType.ACK) {
-				try {
-					ackPacket = new ACKPacket(receivePacket);
-					
-					if (ackPacket.getBlockNumber() != expectedBlockNumber) {
-						String errorMessage = String.format("unexpected ACK packet block number received. Expected: %d, Received: %d", expectedBlockNumber, ackPacket.getBlockNumber());
-						System.err.println(Globals.getErrorMessage("RRQServerThread", errorMessage));
-						errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
-						ackPacket = null;
-						continue;
-					}
-					
-				} catch(TFTPPacketParsingError e) {
-					String errorMessage = String.format("cannot parse ACK packet %d", expectedBlockNumber);
-					System.err.println(Globals.getErrorMessage("RRQServerThread", errorMessage));
-					errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
-					continue;
-				}
-				
-				System.out.println(Globals.getVerboseMessage("RRQServerThread", 
-						String.format("received ACK packet %d from client %s%d", ackPacket.getBlockNumber(), remoteAddress, remotePort)));
-			}
-			else if (receivePacket.getPacketType() == TFTPPacketType.ERROR) {
-				ERRORPacket errorPacket = null;
-				
-				try {
-					errorPacket = new ERRORPacket(receivePacket);
-				} catch (TFTPPacketParsingError e) {
-					String errorMessage = "cannot parse ERROR packet";
-					System.err.println(Globals.getErrorMessage("RRQServerThread", errorMessage));
-					errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
-				}
-				
-				System.out.println(Globals.getVerboseMessage("RRQServerThread", 
-						String.format("received ERROR packet from client %s%d, errorCode: %d, errorMessage: %s", remoteAddress, 
-								remotePort, errorPacket.getErrorCode(), errorPacket.getErrorMessage())));
-				
-				if (errorPacket.getErrorCode() == ERRORPacket.ILLEGAL_TFTP_OPERATION) {
-					continue;
-				}
-				else {
-					return null;
-				}
-			}
-			else {
-				String errorMessage = "invalid TFTP packet";
-				System.err.println(Globals.getErrorMessage("RRQServerThread", errorMessage));
-				errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
-				receivePacket = null;
-				continue;
-			}
-		}
-		
-		return ackPacket;
 	}
 	
 	/**
@@ -141,6 +63,8 @@ public class RRQServerThread extends Thread {
 			errorHandler.sendIllegalOperationErrorPacket("invalid RRQ TFTP packet", remoteAddress, remotePort);
 			return;
 		}
+		
+		packetHandler = new PacketHandler(tftpSocket, errorHandler, remoteAddress, remotePort);
 		
 		// get the file name requested by the client
 		String fileName = rrqPacket.getFileName();
@@ -170,9 +94,9 @@ public class RRQServerThread extends Thread {
 			// send each datagram packet in order and wait for acknowledgement packet from the client
 			DATAPacket dataPacket = dataPacketStack.peek();
 			
-			sendDATAPacketToClient(dataPacket);
+			packetHandler.sendDATAPacket(dataPacket);
 			
-			ACKPacket ackPacket = receiveACKPacketFromClient(dataPacket.getBlockNumber());
+			ACKPacket ackPacket = packetHandler.receiveACKPacket(dataPacket.getBlockNumber());
 			if (ackPacket == null) {
 				break;
 			}

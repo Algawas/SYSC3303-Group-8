@@ -14,6 +14,7 @@ public class Client {
    
    private FileManager fileManager;
    private ErrorHandler errorHandler;
+   private PacketHandler packetHandler;
    
    private InetAddress serverAddress;
    private int serverPort;
@@ -25,6 +26,7 @@ public class Client {
    {
 	   tftpSocket = new TFTPSocket();
 	   errorHandler =  new  ErrorHandler(tftpSocket);
+
 	   
 	   // class for reading and writing files to hard drive 
 	   fileManager = new FileManager();
@@ -68,172 +70,6 @@ public class Client {
 	   tftpSocket.send(requestPacket);
    }
    
-   private void sendACKPacketToServer(short blockNumber) {
-	   ACKPacket ackPacket = TFTPPacketBuilder.getACKDatagram(blockNumber, serverAddress, serverPort);
-	   
-	   System.out.println(Globals.getVerboseMessage("Client", 
-				String.format("sending ACK packet %d to server %s:%d", blockNumber, serverAddress, serverPort)));
-	   
-	   // sends acknowledgement to client
-	   tftpSocket.send(ackPacket);
-   }
-   
-	private void sendDATAPacketToServer(DATAPacket dataPacket) {		
-		System.out.println(Globals.getVerboseMessage("Client", 
-				String.format("sending DATA packet %d to server %s:%d", dataPacket.getBlockNumber(), dataPacket.getRemoteAddress(), dataPacket.getRemotePort())));
-		
-		// send DATA datagram packet
-		tftpSocket.send(dataPacket);
-	}
-   
-   private DATAPacket receiveDATAPacketFromServer(short expectedBlockNumber) {
-	   DATAPacket dataPacket = null;
-		
-		while (dataPacket == null) {
-			TFTPPacket receivePacket = tftpSocket.receive();
-				
-			if (!receivePacket.getRemoteAddress().equals(serverAddress) ||
-					receivePacket.getRemotePort() != serverPort) {
-				String errorMessage = String.format("Received packet from unknown source. Expected: %s:%d, Received: %s:%d", 
-						serverAddress, serverPort, receivePacket.getRemoteAddress(), receivePacket.getRemotePort());
-				
-				System.err.println(Globals.getErrorMessage("Client", errorMessage));	
-				errorHandler.sendUnknownTrasnferIDErrorPacket(errorMessage, serverAddress, serverPort);
-				return null;
-			}
-			
-			
-			if (receivePacket.getPacketType() == TFTPPacketType.DATA) {
-				try {
-					dataPacket = new DATAPacket(receivePacket);
-				} catch(TFTPPacketParsingError e) {
-					String errorMessage = String.format("cannot parse DATA packet %d", expectedBlockNumber);
-					System.err.println(Globals.getErrorMessage("Client", errorMessage));
-					errorHandler.sendIllegalOperationErrorPacket(errorMessage, serverAddress, serverPort);
-					continue;
-				}
-				
-				if (dataPacket.getBlockNumber() != expectedBlockNumber) {
-					String errorMessage = String.format("unexpected DATA packet block number received. Expected: %d, Received: %d", expectedBlockNumber, dataPacket.getBlockNumber());
-					System.err.println(Globals.getErrorMessage("Client", errorMessage));
-					errorHandler.sendIllegalOperationErrorPacket(errorMessage, serverAddress, serverPort);
-					dataPacket = null;
-					continue;
-				}
-				
-				System.out.println(Globals.getVerboseMessage("Client", 
-						String.format("received DATA packet %d from server %s%d", dataPacket.getBlockNumber(), serverAddress, serverPort)));
-			}
-			else if (receivePacket.getPacketType() == TFTPPacketType.ERROR) {
-				ERRORPacket errorPacket = null;
-				
-				try {
-					errorPacket = new ERRORPacket(receivePacket);
-				} catch (TFTPPacketParsingError e) {
-					String errorMessage = "cannot parse ERROR packet";
-					System.err.println(Globals.getErrorMessage("Client", errorMessage));
-					errorHandler.sendIllegalOperationErrorPacket(errorMessage, serverAddress, serverPort);
-					dataPacket = null;
-					continue;
-				}
-				
-				System.out.println(Globals.getVerboseMessage("Client", 
-						String.format("received ERROR packet from server %s%d, errorCode: %d, errorMessage: %s", serverAddress, 
-								serverPort, errorPacket.getErrorCode(), errorPacket.getErrorMessage())));
-				
-				if (errorPacket.getErrorCode() == ERRORPacket.ILLEGAL_TFTP_OPERATION) {
-					sendACKPacketToServer((short) (expectedBlockNumber - 1));
-					dataPacket = null;
-					continue;
-				}
-				else {
-					return null;
-				}
-			}
-			else {
-				String errorMessage = "invalid DATA sent";
-				System.err.println(Globals.getErrorMessage("Client", errorMessage));
-				errorHandler.sendIllegalOperationErrorPacket(errorMessage, serverAddress, serverPort);
-				continue;
-			}
-		}
-		
-		return dataPacket;
-   }	
-  	
-   	private ACKPacket receiveACKPacketFromServer(short expectedBlockNumber) {	
-		ACKPacket ackPacket = null;
-		
-		while (ackPacket == null) {
-			TFTPPacket receivePacket = tftpSocket.receive();
-			
-			if (!receivePacket.getRemoteAddress().equals(serverAddress) ||
-					receivePacket.getRemotePort() != serverPort) {
-				String errorMessage = String.format("Received packet from unknown source. Expected: %s:%d, Received: %s:%d", 
-						serverAddress, serverPort, receivePacket.getRemoteAddress(), receivePacket.getRemotePort());
-				
-				System.err.println(Globals.getErrorMessage("Client", errorMessage));	
-				errorHandler.sendUnknownTrasnferIDErrorPacket(errorMessage, serverAddress, serverPort);
-				return null;
-			}
-		
-			if (receivePacket.getPacketType() == TFTPPacketType.ACK) {
-				try {
-					ackPacket = new ACKPacket(receivePacket);
-					
-					if (ackPacket.getBlockNumber() != expectedBlockNumber) {
-						String errorMessage = String.format("unexpected ACK packet block number received. Expected: %d, Received: %d", expectedBlockNumber, ackPacket.getBlockNumber());
-						System.err.println(Globals.getErrorMessage("Client", errorMessage));
-						errorHandler.sendIllegalOperationErrorPacket(errorMessage, serverAddress, serverPort);
-						ackPacket = null;
-						continue;
-					}
-					
-				} catch(TFTPPacketParsingError e) {
-					String errorMessage = String.format("cannot parse ACK packet %d", expectedBlockNumber);
-					System.err.println(Globals.getErrorMessage("Client", errorMessage));
-					errorHandler.sendIllegalOperationErrorPacket(errorMessage, serverAddress, serverPort);
-					continue;
-				}
-				
-				System.out.println(Globals.getVerboseMessage("Client", 
-						String.format("received ACK packet %d from server %s%d", ackPacket.getBlockNumber(), serverAddress, serverPort)));
-			}
-			else if (receivePacket.getPacketType() == TFTPPacketType.ERROR) {
-				ERRORPacket errorPacket = null;
-				
-				try {
-					errorPacket = new ERRORPacket(receivePacket);
-				} catch (TFTPPacketParsingError e) {
-					String errorMessage = "cannot parse ERROR packet";
-					System.err.println(Globals.getErrorMessage("Client", errorMessage));
-					errorHandler.sendIllegalOperationErrorPacket(errorMessage, serverAddress, serverPort);
-				}
-				
-				System.out.println(Globals.getVerboseMessage("Client", 
-						String.format("received ERROR packet from server %s%d, errorCode: %d, errorMessage: %s", serverAddress, 
-								serverPort, errorPacket.getErrorCode(), errorPacket.getErrorMessage())));
-				
-				if (errorPacket.getErrorCode() == ERRORPacket.ILLEGAL_TFTP_OPERATION) {
-					continue;
-				}
-				else {
-					return null;
-				}
-			}
-			else {
-				String errorMessage = "invalid TFTP packet";
-				System.err.println(Globals.getErrorMessage("Client", errorMessage));
-				errorHandler.sendIllegalOperationErrorPacket(errorMessage, serverAddress, serverPort);
-				receivePacket = null;
-				continue;
-			}
-		}
-		
-		return ackPacket;
-	}
-   
-
    /**
     * Handle DATA packets received from server with file data
     * 
@@ -255,6 +91,8 @@ public class Client {
             e.printStackTrace();
             System.exit(-1);
         }
+        
+        packetHandler = new PacketHandler(tftpSocket, errorHandler, serverAddress, serverPort);
 
 	    short nextBlockNumber = 1; // expect to receive DATA with valid block number
 	   
@@ -264,7 +102,7 @@ public class Client {
         int fileDataLen = NetworkConfig.DATAGRAM_PACKET_MAX_LEN;
         while (fileDataLen == NetworkConfig.DATAGRAM_PACKET_MAX_LEN) {
             // receive datagram packet
-        	dataPacket = receiveDATAPacketFromServer(nextBlockNumber);
+        	dataPacket = packetHandler.receiveDATAPacket(nextBlockNumber);
         	if (dataPacket == null) {
         		return;
         	}
@@ -291,7 +129,7 @@ public class Client {
 	        fileDataLen = dataPacket.getPacketLength();
 	        
 	        // send ACK packet
-	        sendACKPacketToServer(nextBlockNumber);
+	        packetHandler.sendACKPacket(nextBlockNumber);
 	        nextBlockNumber++;
         }
     }
@@ -315,8 +153,10 @@ public class Client {
             e.printStackTrace();
             System.exit(-1);
         }
+        
+        packetHandler = new PacketHandler(tftpSocket, errorHandler, serverAddress, serverPort);
 
-        ACKPacket ackPacket = receiveACKPacketFromServer((short) 0);
+        ACKPacket ackPacket = packetHandler.receiveACKPacket((short) 0);
         if (ackPacket == null) {
         	return;
         }
@@ -345,9 +185,9 @@ public class Client {
 				// send each datagram packet in order and wait for acknowledgement packet from the client
 				DATAPacket dataPacket = dataPacketStack.peek();
 				
-				sendDATAPacketToServer(dataPacket);
+				packetHandler.sendDATAPacket(dataPacket);
 				
-				ackPacket = receiveACKPacketFromServer(dataPacket.getBlockNumber());
+				ackPacket =  packetHandler.receiveACKPacket(dataPacket.getBlockNumber());
 				if (ackPacket == null) {
 					return;
 				}

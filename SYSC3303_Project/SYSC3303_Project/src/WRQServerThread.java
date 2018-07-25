@@ -10,6 +10,7 @@ public class WRQServerThread extends Thread {
 	
 	private FileManager fileManager;
 	private ErrorHandler errorHandler;
+	private PacketHandler packetHandler;
 	
 	private InetAddress remoteAddress;
 	private int remotePort;
@@ -39,91 +40,6 @@ public class WRQServerThread extends Thread {
 		cleanUp();
 	}
 	
-	private DATAPacket receiveDATAPacketFromClient(short expectedBlockNumber) {
-		DATAPacket dataPacket = null;
-		
-		while (dataPacket == null) {
-			TFTPPacket receivePacket = tftpSocket.receive();
-				
-			if (!receivePacket.getRemoteAddress().equals(remoteAddress) ||
-					receivePacket.getRemotePort() != remotePort) {
-				String errorMessage = String.format("Received packet from unknown source. Expected: %s:%d, Received: %s:%d", 
-						remoteAddress, remotePort, receivePacket.getRemoteAddress(), receivePacket.getRemotePort());
-				
-				System.err.println(Globals.getErrorMessage("WRQServerThread", errorMessage));	
-				errorHandler.sendUnknownTrasnferIDErrorPacket(errorMessage, remoteAddress, remotePort);
-				return null;
-			}
-			
-			
-			if (receivePacket.getPacketType() == TFTPPacketType.DATA) {
-				try {
-					dataPacket = new DATAPacket(receivePacket);
-				} catch(TFTPPacketParsingError e) {
-					String errorMessage = String.format("cannot parse DATA packet %d", expectedBlockNumber);
-					System.err.println(Globals.getErrorMessage("WRQServerThread", errorMessage));
-					errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
-					continue;
-				}
-				
-				if (dataPacket.getBlockNumber() != expectedBlockNumber) {
-					String errorMessage = String.format("unexpected DATA packet block number received. Expected: %d, Received: %d", expectedBlockNumber, dataPacket.getBlockNumber());
-					System.err.println(Globals.getErrorMessage("WRQServerThread", errorMessage));
-					errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
-					dataPacket = null;
-					continue;
-				}
-				
-				System.out.println(Globals.getVerboseMessage("WRQServerThread", 
-						String.format("received DATA packet %d from client %s%d", dataPacket.getBlockNumber(), remoteAddress, remotePort)));
-			}
-			else if (receivePacket.getPacketType() == TFTPPacketType.ERROR) {
-				ERRORPacket errorPacket = null;
-				
-				try {
-					errorPacket = new ERRORPacket(receivePacket);
-				} catch (TFTPPacketParsingError e) {
-					String errorMessage = "cannot parse ERROR packet";
-					System.err.println(Globals.getErrorMessage("WRQServerThread", errorMessage));
-					errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
-					dataPacket = null;
-					continue;
-				}
-				
-				System.out.println(Globals.getVerboseMessage("RRQServerThread", 
-						String.format("received ERROR packet from client %s%d, errorCode: %d, errorMessage: %s", remoteAddress, 
-								remotePort, errorPacket.getErrorCode(), errorPacket.getErrorMessage())));
-				
-				if (errorPacket.getErrorCode() == ERRORPacket.ILLEGAL_TFTP_OPERATION) {
-					sendACKPacketToClient((short) (expectedBlockNumber - 1));
-					dataPacket = null;
-					continue;
-				}
-				else {
-					return null;
-				}
-			}
-			else {
-				String errorMessage = "invalid DATA sent";
-				System.err.println(Globals.getErrorMessage("WRQServerThread", errorMessage));
-				errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
-				continue;
-			}
-		}
-		
-		return dataPacket;
-	}
-	
-	private void sendACKPacketToClient(short blockNumber) {
-		ACKPacket ackPacket = TFTPPacketBuilder.getACKDatagram(blockNumber, remoteAddress, remotePort);
-		
-		System.out.println(Globals.getVerboseMessage("WRQServerThread", 
-				String.format("sending ACK packet %d to client %s:%d", blockNumber, remoteAddress, remotePort)));
-		
-		// sends acknowledgement to client
-		tftpSocket.send(ackPacket);
-	}
-	
 	/**
 	 * Handles DATA datagram packets received from client
 	 */
@@ -145,8 +61,10 @@ public class WRQServerThread extends Thread {
 			return;
 		}
 		
+		packetHandler = new PacketHandler(tftpSocket, errorHandler, remoteAddress, remotePort);
+		
 		// send ACK packet to client in response to the write request
-		sendACKPacketToClient((short) 0);
+		packetHandler.sendACKPacket((short) 0);
 		
 		// receive all data packets from client that wants to transfer a file
 		// once the data length is less than 512 bytes then stop listening for
@@ -159,7 +77,7 @@ public class WRQServerThread extends Thread {
 					String.format("waiting for DATA packet from client %s:%d", remoteAddress, remotePort)));
 			
 			// receives data packet from client
-			DATAPacket dataPacket = receiveDATAPacketFromClient(blockNumber);
+			DATAPacket dataPacket = packetHandler.receiveDATAPacket(blockNumber);
 			if (dataPacket == null) {
 				break;
 			}
@@ -188,7 +106,7 @@ public class WRQServerThread extends Thread {
 			// save the length of file data that was just saved
 			dataLenReceived = dataPacket.getPacketLength();
 		
-			sendACKPacketToClient(blockNumber);
+			packetHandler.sendACKPacket(blockNumber);
 		}
 		
 		System.out.println(Globals.getVerboseMessage("WRQServerThread", "connection is finsihed"));
