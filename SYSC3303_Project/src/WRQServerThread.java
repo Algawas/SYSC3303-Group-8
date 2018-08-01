@@ -22,7 +22,9 @@ public class WRQServerThread extends Thread {
 	 */
 	public WRQServerThread(TFTPPacket tftpPacket) {
 		this.requestPacket = tftpPacket;
-		tftpSocket = new TFTPSocket();
+		
+		//tftpSocket = new TFTPSocket(0);
+		tftpSocket = new TFTPSocket(NetworkConfig.TIMEOUT_TIME);
 		
 		fileManager = new FileManager();
 		errorHandler = new ErrorHandler(tftpSocket);
@@ -86,14 +88,17 @@ public class WRQServerThread extends Thread {
 		// once the data length is less than 512 bytes then stop listening for
 		// data packets from the client
 		int dataLenReceived = NetworkConfig.DATAGRAM_PACKET_MAX_LEN;
+		
 		short blockNumber = 0;
+		DATAPacket dataPacket = null;
 		while (dataLenReceived == NetworkConfig.DATAGRAM_PACKET_MAX_LEN) { 
 			blockNumber++;
 			System.out.println(Globals.getVerboseMessage("WRQServerThread", 
 					String.format("waiting for DATA packet from client %s:%d", remoteAddress, remotePort)));
 			
 			// receives data packet from client
-			DATAPacket dataPacket = packetHandler.receiveDATAPacket(blockNumber);
+			dataPacket = packetHandler.receiveDATAPacket(blockNumber);
+        	
 			if (dataPacket == null) {
 				break;
 			}

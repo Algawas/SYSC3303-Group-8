@@ -18,8 +18,6 @@ public class ErrorSimulator implements Runnable {
 	private InetAddress clientAddress;
 	private int clientPort;
 
-	private boolean sendingToServer;
-
 	// error code to simulate
 	private int errorSelection;
 	// type of error to simulate
@@ -47,24 +45,20 @@ public class ErrorSimulator implements Runnable {
 		serverThreadPort = NetworkConfig.SERVER_PORT;
 
 		// create a datagram socket to establish a connection with incoming
-		tftpSocket = new TFTPSocket(NetworkConfig.PROXY_PORT);
-
-		// send packet to server from client
-		sendingToServer = true;
+		tftpSocket = new TFTPSocket(0, NetworkConfig.PROXY_PORT);
 	}
 
+	@Override
 	public void run() {
 		listen();
 	}
 
-	private TFTPPacket establishNewConnection(TFTPPacket tftpPacket, InetAddress clientAddress, int clientPort) {
+	private TFTPPacket establishNewConnection(TFTPPacket tftpPacket) {
 		System.out.println(Globals.getVerboseMessage("Error Simulator", "received packet from client."));
 
 		// save client address and port
-		this.clientAddress = clientAddress;
-		this.clientPort = clientPort;
-
-		sendingToServer = true;
+		this.clientAddress = tftpPacket.getRemoteAddress();
+		this.clientPort = tftpPacket.getRemotePort();
 
 		// save server address and port
 		try {
@@ -76,13 +70,14 @@ public class ErrorSimulator implements Runnable {
 		}
 		serverThreadPort = NetworkConfig.SERVER_PORT;
 
-		System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to server..."));
-
 		if (!lose) {
+			System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to server..."));
+			
 			TFTPPacket sendTFTPPacket;
 			try {
 				sendTFTPPacket = new TFTPPacket(tftpPacket.getPacketBytes(), 0, tftpPacket.getPacketBytes().length,
 						this.serverThreadAddress, this.serverThreadPort);
+				
 				if (duplicate) // duplicates packet
 					duplicatePacket(tftpSocket, sendTFTPPacket, delayTime);
 				else
@@ -93,11 +88,19 @@ public class ErrorSimulator implements Runnable {
 				System.exit(-1);
 			}
 
-			sendingToServer = false;
-
 			System.out.println(Globals.getVerboseMessage("Error Simulator", "waiting for packet from server..."));
 
-			TFTPPacket receiveTFTPPacket = tftpSocket.receive();
+			TFTPPacket receiveTFTPPacket = null;
+			try {
+				receiveTFTPPacket = tftpSocket.receive();
+			} catch (SocketTimeoutException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
 			serverThreadAddress = receiveTFTPPacket.getRemoteAddress();
 			serverThreadPort = receiveTFTPPacket.getRemotePort();
 			return receiveTFTPPacket;
@@ -118,7 +121,15 @@ public class ErrorSimulator implements Runnable {
 			lose = false;
 			duplicate = false;
 
-			receiveTFTPacket = tftpSocket.receive();
+			try {
+				receiveTFTPacket = tftpSocket.receive();
+			} catch (SocketTimeoutException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 
 			if (receiveTFTPacket == null) {
 				continue;
@@ -135,8 +146,7 @@ public class ErrorSimulator implements Runnable {
 							errorBlock);
 				}
 
-				receiveTFTPacket = establishNewConnection(receiveTFTPacket, receiveTFTPacket.getRemoteAddress(),
-						receiveTFTPacket.getRemotePort());
+				receiveTFTPacket = establishNewConnection(receiveTFTPacket);
 			}
 
 			// if not a request packet, it checks which error needs to be done, and does
@@ -148,55 +158,47 @@ public class ErrorSimulator implements Runnable {
 				}
 			}
 
-			// TODO not sure if this is correct
-			if (receiveTFTPacket == null) {
-				listen();
+			InetAddress sendAddress;
+			int sendPort;
+			if (receiveTFTPacket.getRemoteAddress().equals(serverThreadAddress) && 
+					receiveTFTPacket.getRemotePort() == serverThreadPort) {
+				System.out.println(Globals.getVerboseMessage("Error Simulator", "recieved packet from server."));
+				System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to client..."));
+				sendAddress = clientAddress;
+				sendPort = clientPort;
 
 			} else {
+				System.out.println(Globals.getVerboseMessage("Error Simulator", "recieved packet from client."));
+				System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to server..."));
+				sendAddress = serverThreadAddress;
+				sendPort = serverThreadPort;
+			}
 
-				InetAddress sendAddress;
-				int sendPort;
-				if (!sendingToServer) {
-					System.out.println(Globals.getVerboseMessage("Error Simulator", "recieved packet from server."));
-					System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to client..."));
-					sendAddress = clientAddress;
-					sendPort = clientPort;
+			if (!lose) {
+				try {
+					sendTFTPPacket = new TFTPPacket(receiveTFTPacket.getPacketBytes(), 0,
+							receiveTFTPacket.getPacketBytes().length, sendAddress, sendPort);
+				} catch (TFTPPacketParsingError e) {
+					System.err.println(Globals.getErrorMessage("Error Simulator", "cannot create TFTP Packet"));
+					e.printStackTrace();
+					System.exit(-1);
+				}
 
+				if (errorSelection == 3) { // transfer ID error
+					TFTPSocket tempTFTPSocket = new TFTPSocket(0);
+
+					if (duplicate) // sends a duplicate packet after delay
+						duplicatePacket(tempTFTPSocket, sendTFTPPacket, delayTime);
+					else
+						tempTFTPSocket.send(sendTFTPPacket);
+					tempTFTPSocket.close();
+					
 				} else {
-					System.out.println(Globals.getVerboseMessage("Error Simulator", "recieved packet from client."));
-					System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to server..."));
-					sendAddress = serverThreadAddress;
-					sendPort = serverThreadPort;
+					if (duplicate) // sends a duplicate packet after delay
+						duplicatePacket(tftpSocket, sendTFTPPacket, delayTime);
+					else
+						tftpSocket.send(sendTFTPPacket);
 				}
-
-				if (!lose) {
-					try {
-						sendTFTPPacket = new TFTPPacket(receiveTFTPacket.getPacketBytes(), 0,
-								receiveTFTPacket.getPacketBytes().length, sendAddress, sendPort);
-					} catch (TFTPPacketParsingError e) {
-						System.err.println(Globals.getErrorMessage("Error Simulator", "cannot create TFTP Packet"));
-						e.printStackTrace();
-						System.exit(-1);
-					}
-
-					if (errorSelection == 3) { // transfer ID error
-						TFTPSocket tempTFTPSocket = new TFTPSocket();
-
-						if (duplicate) // sends a duplicate packet after delay
-							duplicatePacket(tempTFTPSocket, sendTFTPPacket, delayTime);
-						else
-							tempTFTPSocket.send(sendTFTPPacket);
-						tempTFTPSocket.close();
-					} else {
-						if (duplicate) // sends a duplicate packet after delay
-							duplicatePacket(tftpSocket, sendTFTPPacket, delayTime);
-						else
-							tftpSocket.send(sendTFTPPacket);
-					}
-
-					sendingToServer = !sendingToServer;
-				}
-
 			}
 		}
 
@@ -248,6 +250,8 @@ public class ErrorSimulator implements Runnable {
 					delayPacket(delayTime);
 				else if (code == 6)
 					activateDuplicatePacket();
+				
+				errorSelection = 1;
 
 			}
 
@@ -272,6 +276,8 @@ public class ErrorSimulator implements Runnable {
 						delayPacket(delayTime);
 					else if (code == 6)
 						activateDuplicatePacket();
+					
+					errorSelection = 1;
 				}
 				// }
 			} else {
@@ -295,6 +301,8 @@ public class ErrorSimulator implements Runnable {
 						delayPacket(delayTime);
 					else if (code == 6)
 						activateDuplicatePacket();
+					
+					errorSelection = 1;
 				}
 				// }
 			}

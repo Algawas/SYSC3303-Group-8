@@ -1,7 +1,6 @@
 package tftp;
 
 import java.net.InetAddress;
-import java.nio.ByteBuffer;
 
 public interface TFTPPacket {
 		

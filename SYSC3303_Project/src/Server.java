@@ -2,6 +2,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.Scanner;
 
@@ -14,7 +15,7 @@ public class Server implements Runnable {
 	private ErrorHandler errorHandler;
 	
 	public Server() {
-		tftpSocket = new TFTPSocket(NetworkConfig.SERVER_PORT);
+		tftpSocket = new TFTPSocket(0, NetworkConfig.SERVER_PORT);
 		errorHandler = new ErrorHandler(tftpSocket);
 	}
 	
@@ -27,7 +28,18 @@ public class Server implements Runnable {
 		while (!tftpSocket.isClosed()) {
 			System.out.println(Globals.getVerboseMessage("Server", "waiting for packet..."));
 			
-			TFTPPacket requestPacket = tftpSocket.receive();
+			TFTPPacket requestPacket = null;
+			try {
+				requestPacket = tftpSocket.receive();
+			} catch (SocketTimeoutException e) {
+				String errorMessage = "Socket timed out. Cannot receive TFTP packet";
+				System.err.println(Globals.getErrorMessage("Server", errorMessage));	
+				continue;
+			} catch (IOException e) {
+				System.err.println(Globals.getErrorMessage("Server", "oops... the connection broke"));
+				e.printStackTrace();
+				System.exit(-1);
+			}
 			
 			/*
 			 * If the received TFTP packet cannot be parsed TFTP socket returns a null

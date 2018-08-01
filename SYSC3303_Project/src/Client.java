@@ -24,7 +24,8 @@ public class Client {
     */
    public Client()
    {
-	   tftpSocket = new TFTPSocket();
+	   //tftpSocket = new TFTPSocket(0);
+	   tftpSocket = new TFTPSocket(NetworkConfig.TIMEOUT_TIME);
 	   errorHandler =  new  ErrorHandler(tftpSocket);
 
 	   
@@ -103,22 +104,23 @@ public class Client {
         while (fileDataLen == NetworkConfig.DATAGRAM_PACKET_MAX_LEN) {
             // receive datagram packet
         	dataPacket = packetHandler.receiveDATAPacket(nextBlockNumber);
+        	
         	if (dataPacket == null) {
         		return;
         	}
         	
-        	FileManager.FileManagerResult res;
+        	FileManager.FileManagerResult fmRes;
         	if (dataPacket.getBlockNumber() == 1) {
-        		res = fileManager.createFile(fileName);
+        		fmRes = fileManager.createFile(fileName);
         		
-        		if (res.error) {
+        		if (fmRes.error) {
         			// access violation error will send an error packet with error code 2 and the connection
-        			if (res.accessViolation)
+        			if (fmRes.accessViolation)
         				errorHandler.sendAccessViolationErrorPacket(String.format("write access denied to file: %s", fileName), serverAddress, serverPort);
         			// disk full error will send an error packet with error code 3 and close the connection
-        			else if (res.fileAlreadyExist)
+        			else if (fmRes.fileAlreadyExist)
         				errorHandler.sendFileExistsErrorPacket(String.format("file already exists: %s", fileName), serverAddress, serverPort);
-        			else if (res.diskFull)
+        			else if (fmRes.diskFull)
         				errorHandler.sendDiskFullErrorPacket(String.format("Not enough disk space for file: %s", fileName), serverAddress, serverPort);
         			return;
         		}
@@ -127,20 +129,17 @@ public class Client {
         	
 	        // gets the data bytes from the DATA packet and converts it into a string
         	byte[] fileData = dataPacket.getDataBytes();
-	        String fileDataStr = ByteConversions.bytesToString(fileData);
-	        
-	        System.out.println(Globals.getVerboseMessage("Client", String.format("received file data: %s", fileDataStr)));
 	        
 	        // write file on client side
-            res = fileManager.writeFile(fileName, fileData);           
-            if (res.error) {
+            fmRes = fileManager.writeFile(fileName, fileData);           
+            if (fmRes.error) {
     			// access violation error will send an error packet with error code 2 and the connection
-    			if (res.accessViolation)
+    			if (fmRes.accessViolation)
     				errorHandler.sendAccessViolationErrorPacket(String.format("write access denied to file: %s", fileName), serverAddress, serverPort);
     			// disk full error will send an error packet with error code 3 and close the connection
-    			else if (res.fileAlreadyExist)
+    			else if (fmRes.fileAlreadyExist)
     				errorHandler.sendFileExistsErrorPacket(String.format("file already exists: %s", fileName), serverAddress, serverPort);
-    			else if (res.diskFull)
+    			else if (fmRes.diskFull)
     			    errorHandler.sendDiskFullErrorPacket(String.format("Not enough disk space for file: %s", fileName), serverAddress, serverPort);
     			return;
     		}
@@ -157,11 +156,11 @@ public class Client {
     }
     
     /**
-        * Handle sending DATA packets to server 
-        * 
-        * @param filePath path of the file client wants to write to
-        * @param mode     mode of the request
-        */
+    * Handle sending DATA packets to server 
+    * 
+    * @param filePath path of the file client wants to write to
+    * @param mode     mode of the request
+    */
     public void writeFile(String filePath, String mode) {
         // get file name from file path
         String fileName = Paths.get(filePath).getFileName().toString();
@@ -177,16 +176,17 @@ public class Client {
         }
         
         packetHandler = new PacketHandler(tftpSocket, errorHandler, serverAddress, serverPort);
-
+        
         ACKPacket ackPacket = packetHandler.receiveACKPacket((short) 0);
+        
         if (ackPacket == null) {
         	return;
         }
         
         if (ackPacket.getBlockNumber() == 0) {
-
 	        // reads a file on client side to create on the server side
         	FileManager.FileManagerResult res = fileManager.readFile(filePath);
+        	
     		byte[] fileData = null;
     		
     		if (!res.error) {
@@ -205,14 +205,16 @@ public class Client {
 	        
 	        // create list of DATA datagram packets that contain up to 512 bytes of file data
 	        Queue<DATAPacket> dataPacketStack = TFTPPacketBuilder.getStackOfDATADatagramPackets(fileData, serverAddress, serverPort);
-	
+	        
+	        DATAPacket dataPacket = null;
 	        while (!dataPacketStack.isEmpty()) {
 				// send each datagram packet in order and wait for acknowledgement packet from the client
-				DATAPacket dataPacket = dataPacketStack.peek();
+				dataPacket = dataPacketStack.peek();
 				
 				packetHandler.sendDATAPacket(dataPacket);
 				
-				ackPacket =  packetHandler.receiveACKPacket(dataPacket.getBlockNumber());
+				ackPacket = packetHandler.receiveACKPacket(dataPacket);
+				
 				if (ackPacket == null) {
 					return;
 				}

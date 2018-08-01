@@ -172,6 +172,7 @@ public final class TFTPDatagram implements TFTPPacket {
 	}
 	
 	
+	@Override
 	public void setType(TFTPPacketType type) throws TFTPPacketException {
 		
 		switch(type) {

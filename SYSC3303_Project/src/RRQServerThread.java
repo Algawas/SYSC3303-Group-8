@@ -25,7 +25,7 @@ public class RRQServerThread extends Thread {
 	public RRQServerThread(TFTPPacket requestPacket) {
 		this.requestPacket = requestPacket;
 		
-		tftpSocket = new TFTPSocket();
+		tftpSocket = new TFTPSocket(NetworkConfig.TIMEOUT_TIME);
 		
 		remoteAddress = requestPacket.getRemoteAddress();
 		remotePort = requestPacket.getRemotePort();
@@ -38,6 +38,7 @@ public class RRQServerThread extends Thread {
 	/**
 	 * For threading purposes
 	 */
+	@Override
 	public void run() {
 		handleRRQConnection();
 		cleanUp();
@@ -90,13 +91,17 @@ public class RRQServerThread extends Thread {
 		// create list of DATA datagram packets that contain up to 512 bytes of file data
 		dataPacketStack = TFTPPacketBuilder.getStackOfDATADatagramPackets(fileData, remoteAddress, remotePort);
 		
+		DATAPacket dataPacket = null;
+		ACKPacket ackPacket = null;
 		while (!dataPacketStack.isEmpty()) {
 			// send each datagram packet in order and wait for acknowledgement packet from the client
-			DATAPacket dataPacket = dataPacketStack.peek();
 			
+			dataPacket = dataPacketStack.peek();
+		
 			packetHandler.sendDATAPacket(dataPacket);
+		 
+			ackPacket = packetHandler.receiveACKPacket(dataPacket); 
 			
-			ACKPacket ackPacket = packetHandler.receiveACKPacket(dataPacket.getBlockNumber());
 			if (ackPacket == null) {
 				break;
 			}
