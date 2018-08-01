@@ -106,7 +106,6 @@ public class ErrorSimulator implements Runnable {
 			return receiveTFTPPacket;
 		} else {
 			// if packet is lost, it calls this function again to wait from the client
-			// TODO Confirm if it's acceptable to call listen from here
 			return null;
 		}
 
@@ -158,23 +157,25 @@ public class ErrorSimulator implements Runnable {
 				}
 			}
 
-			InetAddress sendAddress;
-			int sendPort;
-			if (receiveTFTPacket.getRemoteAddress().equals(serverThreadAddress) && 
-					receiveTFTPacket.getRemotePort() == serverThreadPort) {
-				System.out.println(Globals.getVerboseMessage("Error Simulator", "recieved packet from server."));
-				System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to client..."));
-				sendAddress = clientAddress;
-				sendPort = clientPort;
-
-			} else {
-				System.out.println(Globals.getVerboseMessage("Error Simulator", "recieved packet from client."));
-				System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to server..."));
-				sendAddress = serverThreadAddress;
-				sendPort = serverThreadPort;
-			}
-
 			if (!lose) {
+				InetAddress sendAddress;
+				int sendPort;
+				System.out
+						.println(receiveTFTPacket.getRemoteAddress() + " sdojdssd " + receiveTFTPacket.getRemotePort());
+				if (receiveTFTPacket.getRemoteAddress().equals(serverThreadAddress)
+						&& receiveTFTPacket.getRemotePort() == serverThreadPort) {
+					System.out.println(Globals.getVerboseMessage("Error Simulator", "recieved packet from server."));
+					System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to client..."));
+					sendAddress = clientAddress;
+					sendPort = clientPort;
+
+				} else {
+					System.out.println(Globals.getVerboseMessage("Error Simulator", "recieved packet from client."));
+					System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to server..."));
+					sendAddress = serverThreadAddress;
+					sendPort = serverThreadPort;
+				}
+
 				try {
 					sendTFTPPacket = new TFTPPacket(receiveTFTPacket.getPacketBytes(), 0,
 							receiveTFTPacket.getPacketBytes().length, sendAddress, sendPort);
