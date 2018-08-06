@@ -68,7 +68,7 @@ public class ErrorSimulator implements Runnable {
 		// save client address and port
 		this.clientAddress = tftpPacket.getRemoteAddress();
 		this.clientPort = tftpPacket.getRemotePort();
-
+		serverThreadPort = NetworkConfig.SERVER_PORT;
 		if (!lose) {
 			System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to server..."));
 			
@@ -76,7 +76,7 @@ public class ErrorSimulator implements Runnable {
 			try {
 				sendTFTPPacket = new TFTPPacket(tftpPacket.getPacketBytes(), 0, tftpPacket.getPacketBytes().length,
 						this.serverThreadAddress, this.serverThreadPort);
-				
+				/////
 				if (duplicate) // duplicates packet
 					duplicatePacket(tftpSocket, sendTFTPPacket, delayTime);
 				else
@@ -91,6 +91,10 @@ public class ErrorSimulator implements Runnable {
 
 			TFTPPacket receiveTFTPPacket = null;
 			try {
+				if(tftpSocket.isClosed())
+					System.out.println("Hey I'm closed");
+				else
+					System.out.println("Hey I'm open");
 				receiveTFTPPacket = tftpSocket.receive();
 			} catch (SocketTimeoutException e) {
 				// TODO Auto-generated catch block
@@ -159,8 +163,6 @@ public class ErrorSimulator implements Runnable {
 			if (!lose) {
 				InetAddress sendAddress;
 				int sendPort;
-				System.out
-						.println(receiveTFTPacket.getRemoteAddress() + " sdojdssd " + receiveTFTPacket.getRemotePort());
 				if (receiveTFTPacket.getRemoteAddress().equals(serverThreadAddress)
 						&& receiveTFTPacket.getRemotePort() == serverThreadPort) {
 					System.out.println(Globals.getVerboseMessage("Error Simulator", "recieved packet from server."));
@@ -173,6 +175,8 @@ public class ErrorSimulator implements Runnable {
 					System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to server..."));
 					sendAddress = serverThreadAddress;
 					sendPort = serverThreadPort;
+					System.out 
+					.println("The Server Address is: " + sendAddress + " The Server Port is: " + sendPort); //delete this
 				}
 
 				try {

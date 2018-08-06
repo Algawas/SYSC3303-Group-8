@@ -72,7 +72,7 @@ public class Server implements Runnable {
 			}
 		}
 		
-		tftpSocket.close();
+	//add this again	tftpSocket.close();
 	}
 	
 	public void shutdown() {
