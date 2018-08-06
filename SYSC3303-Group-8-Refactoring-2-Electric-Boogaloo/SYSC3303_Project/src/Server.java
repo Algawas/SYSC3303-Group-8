@@ -112,6 +112,13 @@ public class Server implements Runnable {
 		Server server = null;
 		Thread serverThread = null;
 		
+		try {
+			System.out.println("The server address name is: " + InetAddress.getLocalHost().getHostAddress());
+		} catch (UnknownHostException e) {
+			System.err.println(Globals.getErrorMessage("Server", "Cannot get host"));
+			e.printStackTrace();
+			System.exit(-1);
+		}
 		System.out.println("\nSYSC 3033 TFTP Server");
 		System.out.println("1. Start");
 		System.out.println("2. Exit");
