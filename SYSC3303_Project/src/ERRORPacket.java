@@ -96,11 +96,6 @@ public class ERRORPacket extends TFTPPacket {
 		return errorMessage;
 	}
 	
-	@Override
-	public String toString() {
-		return "errorCode: " + errorCode + ", message: " + errorMessage; 
-	}
-	
 	/**
 	 * Returns an ERROR packet given the attributes
 	 * 
@@ -148,5 +143,10 @@ public class ERRORPacket extends TFTPPacket {
 		errorPacket.remotePort = remotePort;
 		
 		return errorPacket;
+	}
+	
+	public String toString() {
+		return String.format("ERROR Packet: OPCode: %d, Error Code: %d, Error Message: %s, Packet size: %d", 
+				opCode, errorCode, errorMessage, packetLength);
 	}
 }

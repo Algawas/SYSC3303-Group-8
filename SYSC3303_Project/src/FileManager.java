@@ -51,8 +51,6 @@ public class FileManager {
 			fileInputStream.close();
 			res.fileBytes = fileBytes;
 		} catch (FileNotFoundException e) {	
-			
-			
 			// if the error message contains "Permission denied"
 			// then set the accessViolation flag to true
 			if (e.getMessage().contains("Permission denied"))
@@ -66,9 +64,6 @@ public class FileManager {
 			res.error = true;
 			
 		} catch (IOException e) {
-			System.err.println(Globals.getErrorMessage("FileManager", "cannot read file."));
-			e.printStackTrace();
-			
 			// if the error message contains "Permission denied"
 			// then set the accessViolation flag to true
 			if (e.getMessage().contains("Permission denied"))
@@ -106,9 +101,6 @@ public class FileManager {
 				file.createNewFile();
 			}
 		} catch (IOException e) {
-			System.err.println(Globals.getErrorMessage("FileManager", "cannot read file."));
-			e.printStackTrace();
-			
 			// if the error message contains "Permission denied"
 			// then set the accessViolation flag to true
 			if (e.getMessage().contains("Permission denied"))
@@ -156,9 +148,6 @@ public class FileManager {
 			res.error = true;
 			
 		} catch (IOException e) {
-			System.err.println(Globals.getErrorMessage("FileManager", "cannot read file."));
-			e.printStackTrace();
-			
 			// if the error message contains "Permission denied"
 			// then set the accessViolation flag to true
 			if (e.getMessage().contains("Permission denied"))

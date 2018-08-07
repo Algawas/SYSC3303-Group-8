@@ -125,4 +125,9 @@ public class DATAPacket extends TFTPPacket {
 		
 		return dataPacket;
 	}
+	
+	public String toString() {
+		return String.format("DATA Packet: OPCode: %d, Block number: %d, Packet size: %d", opCode, blockNumber, packetLength);
+	}
+	
 }

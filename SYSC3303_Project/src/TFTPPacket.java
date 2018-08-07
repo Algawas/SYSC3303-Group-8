@@ -109,4 +109,8 @@ public class TFTPPacket {
 		else
 			return TFTPPacketType.INVALID;
 	}
+	
+	public String toString() {
+		return String.format("TFTP Packet: OPCode: %d, Packet size: %d", opCode, packetLength);
+	}
 }

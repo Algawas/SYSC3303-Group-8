@@ -169,4 +169,8 @@ public class RRQWRQPacket extends TFTPPacket {
 		
 		return requestPacket;
 	}
+	
+	public String toString() {
+		return String.format("RRQ/WRQ Packet: OPCode: %d, Filename: %s, Mode: %s, Packet size: %d", opCode, fileName, mode, packetLength);
+	}
 }

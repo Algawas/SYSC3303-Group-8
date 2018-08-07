@@ -1,6 +1,7 @@
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 
@@ -15,7 +16,7 @@ public class TFTPSocket {
 				datagramSocket.setSoTimeout(timeout);
 			}
 		} catch (SocketException e) {
-			System.err.println(Globals.getErrorMessage("TFTPSocket", "cannot create datagram socket on unspecified port"));
+			UIManager.printErrorMessage("TFTPSocket", "cannot create datagram socket on unspecified port");
 			e.printStackTrace();
 			System.exit(-1);
 		}
@@ -30,7 +31,7 @@ public class TFTPSocket {
 				datagramSocket.setSoTimeout(timeout);
 			}
 		} catch (SocketException e) {
-			System.err.println(Globals.getErrorMessage("TFTPSocket", String.format("cannot create datagram socket on port %d", port)));
+			UIManager.printErrorMessage("TFTPSocket", String.format("cannot create datagram socket on port %d", port));
 			e.printStackTrace();
 			System.exit(-1);
 		}
@@ -43,7 +44,7 @@ public class TFTPSocket {
 		try {
 			datagramSocket.send(sendDatagramPacket);
 		} catch (IOException e) {
-			System.err.println(Globals.getErrorMessage("TFTPSocket", "oops... the connection broke"));
+			UIManager.printErrorMessage("TFTPSocket", "oops... the connection broke");
 			e.printStackTrace();
 			System.exit(-1);
 		}
@@ -73,7 +74,7 @@ public class TFTPSocket {
 			tftpPacket =  new TFTPPacket(receiveDatagramPacket.getData(), receiveDatagramPacket.getOffset(), 
 				receiveDatagramPacket.getLength(), receiveDatagramPacket.getAddress(), receiveDatagramPacket.getPort());
 		} catch (TFTPPacketParsingError e) {
-			System.err.println(Globals.getErrorMessage("TFTPSocket", "cannot parse TFTP packet"));
+			UIManager.printErrorMessage("TFTPSocket", "cannot parse TFTP packet");
 			errorHandler.sendIllegalOperationErrorPacket("cannot parse TFTP packet", receiveDatagramPacket.getAddress(), datagramSocket.getPort());
 		}
 		
@@ -86,5 +87,13 @@ public class TFTPSocket {
 	
 	public void close() {
 		datagramSocket.close();
+	}
+	
+	public InetAddress getIPAddress() {
+		return datagramSocket.getLocalAddress();
+	}
+	
+	public int getPort() {
+		return datagramSocket.getLocalPort();
 	}
 }

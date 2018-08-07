@@ -38,7 +38,7 @@ public class ErrorSimulator implements Runnable {
 		try {
 			serverThreadAddress = InetAddress.getLocalHost();
 		} catch (UnknownHostException e) {
-			System.err.println(Globals.getErrorMessage("Error Simulator", "cannot get localhost address"));
+			UIManager.printErrorMessage("Error Simulator", "cannot get localhost address");
 			e.printStackTrace();
 			System.exit(-1);
 		}
@@ -54,7 +54,12 @@ public class ErrorSimulator implements Runnable {
 	}
 
 	private TFTPPacket establishNewConnection(TFTPPacket tftpPacket) {
-		System.out.println(Globals.getVerboseMessage("Error Simulator", "received packet from client."));
+		String[] messages1 = {
+				"received request packet from client.",
+				String.format("received request packet from client %s:%d, establisihing new connection.", tftpPacket.getRemoteAddress(), tftpPacket.getRemotePort())
+		};
+		
+		UIManager.printMessage("ErrorSimulator", messages1);
 
 		// save client address and port
 		this.clientAddress = tftpPacket.getRemoteAddress();
@@ -64,14 +69,19 @@ public class ErrorSimulator implements Runnable {
 		try {
 			serverThreadAddress = InetAddress.getLocalHost();
 		} catch (UnknownHostException e) {
-			System.err.println(Globals.getErrorMessage("Error Simulator", "cannot get localhost address"));
+			UIManager.printErrorMessage("Error Simulator", "cannot get localhost address");
 			e.printStackTrace();
 			System.exit(-1);
 		}
 		serverThreadPort = NetworkConfig.SERVER_PORT;
 
 		if (!lose) {
-			System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to server..."));
+			String[] messages2 = {
+					"sending packet to server...",
+					String.format("sending %s to server...", tftpPacket.toString())
+			};
+			
+			UIManager.printMessage("ErrorSimulator", messages2);
 			
 			TFTPPacket sendTFTPPacket;
 			try {
@@ -83,12 +93,17 @@ public class ErrorSimulator implements Runnable {
 				else
 					tftpSocket.send(sendTFTPPacket);
 			} catch (TFTPPacketParsingError e) {
-				System.err.println(Globals.getErrorMessage("Error Simulator", "cannot create TFTP packet"));
+				UIManager.printErrorMessage("Error Simulator", "cannot create TFTP packet");
 				e.printStackTrace();
 				System.exit(-1);
 			}
 
-			System.out.println(Globals.getVerboseMessage("Error Simulator", "waiting for packet from server..."));
+			String[] messages3 = {
+					"waiting for packet from server...",
+					"waiting for packet from server..."
+			};
+			
+			UIManager.printMessage("ErrorSimulator", messages3);
 
 			TFTPPacket receiveTFTPPacket = null;
 			try {
@@ -160,18 +175,43 @@ public class ErrorSimulator implements Runnable {
 			if (!lose) {
 				InetAddress sendAddress;
 				int sendPort;
-				System.out
-						.println(receiveTFTPacket.getRemoteAddress() + " sdojdssd " + receiveTFTPacket.getRemotePort());
+				
 				if (receiveTFTPacket.getRemoteAddress().equals(serverThreadAddress)
 						&& receiveTFTPacket.getRemotePort() == serverThreadPort) {
-					System.out.println(Globals.getVerboseMessage("Error Simulator", "recieved packet from server."));
-					System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to client..."));
+					
+					String[] messages1 = {
+							"recieved packet from server.",
+							String.format("recieved %s from server.", receiveTFTPacket.toString())
+					};
+					
+					UIManager.printMessage("ErrorSimulator", messages1);
+					
+					
+					String[] messages2 = {
+							"sending packet to client...",
+							"sending packet to client..."
+					};
+					
+					UIManager.printMessage("ErrorSimulator", messages2);
+					
 					sendAddress = clientAddress;
 					sendPort = clientPort;
 
 				} else {
-					System.out.println(Globals.getVerboseMessage("Error Simulator", "recieved packet from client."));
-					System.out.println(Globals.getVerboseMessage("Error Simulator", "sending packet to server..."));
+					String[] messages1 = {
+							"recieved packet from client.",
+							String.format("recieved %s from client.", receiveTFTPacket.toString())
+					};
+					
+					UIManager.printMessage("ErrorSimulator", messages1);
+					
+					String[] messages2 = {
+							"sending packet to server...",
+							"sending packet to server..."
+					};
+					
+					UIManager.printMessage("ErrorSimulator", messages2);
+					
 					sendAddress = serverThreadAddress;
 					sendPort = serverThreadPort;
 				}
@@ -180,7 +220,7 @@ public class ErrorSimulator implements Runnable {
 					sendTFTPPacket = new TFTPPacket(receiveTFTPacket.getPacketBytes(), 0,
 							receiveTFTPacket.getPacketBytes().length, sendAddress, sendPort);
 				} catch (TFTPPacketParsingError e) {
-					System.err.println(Globals.getErrorMessage("Error Simulator", "cannot create TFTP Packet"));
+					UIManager.printErrorMessage("Error Simulator", "cannot create TFTP Packet");
 					e.printStackTrace();
 					System.exit(-1);
 				}
@@ -213,7 +253,7 @@ public class ErrorSimulator implements Runnable {
 		try {
 			Thread.sleep(time);
 		} catch (InterruptedException e) {
-			System.err.println(Globals.getErrorMessage("Error Simulator", "cannot sleep"));
+			UIManager.printErrorMessage("Error Simulator", "cannot sleep");
 			e.printStackTrace();
 			System.exit(-1);
 		}
@@ -235,7 +275,7 @@ public class ErrorSimulator implements Runnable {
 				try {
 					rrqwrq = new RRQWRQPacket(tftpPacket);
 				} catch (TFTPPacketParsingError e) {
-					System.err.println(Globals.getErrorMessage("Error Simulator", "cannot parse TFTP DATA Packet"));
+					UIManager.printErrorMessage("Error Simulator", "cannot parse TFTP DATA Packet");
 					e.printStackTrace();
 					System.exit(-1);
 				}
@@ -263,7 +303,7 @@ public class ErrorSimulator implements Runnable {
 				try {
 					data = new DATAPacket(tftpPacket);
 				} catch (TFTPPacketParsingError e) {
-					System.err.println(Globals.getErrorMessage("Error Simulator", "cannot parse TFTP DATA Packet"));
+					UIManager.printErrorMessage("Error Simulator", "cannot parse TFTP DATA Packet");
 					e.printStackTrace();
 					System.exit(-1);
 				}
@@ -288,7 +328,7 @@ public class ErrorSimulator implements Runnable {
 				try {
 					ack = new ACKPacket(tftpPacket);
 				} catch (TFTPPacketParsingError e) {
-					System.err.println(Globals.getErrorMessage("Error Simulator", "cannot parse TFTP ACK Packet"));
+					UIManager.printErrorMessage("Error Simulator", "cannot parse TFTP ACK Packet");
 					e.printStackTrace();
 					System.exit(-1);
 				}
@@ -328,7 +368,7 @@ public class ErrorSimulator implements Runnable {
 			Thread.sleep(time);
 			System.out.println("The packet has been delayed by " + time / 1000 + " seconds");
 		} catch (InterruptedException e) {
-			System.err.println(Globals.getErrorMessage("ErrorSimulator", "cannot sleep"));
+			UIManager.printErrorMessage("ErrorSimulator", "cannot sleep");
 			e.printStackTrace();
 			System.exit(-1);
 		}
@@ -376,13 +416,17 @@ public class ErrorSimulator implements Runnable {
 	}
 
 	public void shutdown() {
-		System.out.println(Globals.getVerboseMessage("Error Simulator", "shutting down..."));
+		String[] messages1 = {
+				"shutting down...",
+				"shutting down..."
+		};
+		UIManager.printMessage("Error Simulator", messages1);
 
 		// wait for any packets to be replayed
 		try {
 			Thread.sleep(1000);
 		} catch (InterruptedException e) {
-			System.err.println(Globals.getErrorMessage("Error Simulator", "cannot make current thread go to sleep."));
+			UIManager.printErrorMessage("Error Simulator", "cannot make current thread go to sleep.");
 			e.printStackTrace();
 			System.exit(-1);
 		}
@@ -397,20 +441,28 @@ public class ErrorSimulator implements Runnable {
 						.send(new DatagramPacket(new byte[0], 0, InetAddress.getLocalHost(), NetworkConfig.PROXY_PORT));
 				shutdownClient.close();
 			} catch (UnknownHostException e) {
-				System.err.println(Globals.getErrorMessage("Server", "cannot find localhost address."));
+				UIManager.printErrorMessage("Server", "cannot find localhost address.");
 				e.printStackTrace();
 				System.exit(-1);
 			} catch (IOException e) {
-				System.err.println(Globals.getErrorMessage("Server", "cannot send packet to server."));
+				UIManager.printErrorMessage("Server", "cannot send packet to server.");
 				e.printStackTrace();
 				System.exit(-1);
 			}
 		}
 
-		System.out.println(Globals.getVerboseMessage("Error Simulator", "goodbye!"));
+		String[] messages2 = {
+				"goodbye",
+				String.format("error simulator is shutdown. Port %d released.", tftpSocket.getPort())
+		};
+		
+		UIManager.printMessage("Server", messages2);
 	}
 
 	public static void main(String[] args) {
+		
+		UIManager.promptForUIMode();
+		
 		ErrorSimulator proxy = null;
 		Thread proxyThread = null;
 
@@ -520,7 +572,7 @@ public class ErrorSimulator implements Runnable {
 			try {
 				proxyThread.join(1000);
 			} catch (InterruptedException e) {
-				System.err.println(Globals.getErrorMessage("ErrorSimulator", "cannot close server thread"));
+				UIManager.printErrorMessage("ErrorSimulator", "cannot close server thread");
 				e.printStackTrace();
 				System.exit(-1);
 			}

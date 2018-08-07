@@ -4,7 +4,6 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
-import java.util.Scanner;
 
 /**
  * This class represents a server.
@@ -26,17 +25,22 @@ public class Server implements Runnable {
 	
 	private void listen() {
 		while (!tftpSocket.isClosed()) {
-			System.out.println(Globals.getVerboseMessage("Server", "waiting for packet..."));
+			String[] messages = {
+					"waiting for packet...",
+					String.format("waiting for packet on port %d", tftpSocket.getPort())
+			};
+			
+			UIManager.printMessage("Server", messages);
 			
 			TFTPPacket requestPacket = null;
 			try {
 				requestPacket = tftpSocket.receive();
 			} catch (SocketTimeoutException e) {
 				String errorMessage = "Socket timed out. Cannot receive TFTP packet";
-				System.err.println(Globals.getErrorMessage("Server", errorMessage));	
+				UIManager.printErrorMessage("Server", errorMessage);	
 				continue;
 			} catch (IOException e) {
-				System.err.println(Globals.getErrorMessage("Server", "oops... the connection broke"));
+				UIManager.printErrorMessage("Server", "oops... the connection broke");
 				e.printStackTrace();
 				System.exit(-1);
 			}
@@ -53,21 +57,31 @@ public class Server implements Runnable {
 			TFTPPacketType packetType = requestPacket.getPacketType();
 			
 			if (packetType == TFTPPacketType.RRQ) {
-				System.out.println(Globals.getVerboseMessage("Server", "RRQ request recevied."));
+				String[] messages1 = {
+						"RRQ request recevied.",
+						String.format("RRQ request recevied from client %s:%d", requestPacket.getRemoteAddress(), requestPacket.getRemotePort())
+				};
+				
+				UIManager.printMessage("Server", messages1);
 				
 				// create a server thread for handling read requests
 				RRQServerThread rrqServerThread = new RRQServerThread(requestPacket);
 				rrqServerThread.start();
 			}
 			else if (packetType == TFTPPacketType.WRQ) {
-				System.out.println(Globals.getVerboseMessage("Server", "WRQ request received."));
+				String[] messages1 = {
+						"WRQ request recevied.",
+						String.format("RRQ request recevied from client %s:%d", requestPacket.getRemoteAddress(), requestPacket.getRemotePort())
+				};
+				
+				UIManager.printMessage("Server", messages1);
 				
 				// create a server thread for handling write requests
 				WRQServerThread wrqServerThread = new WRQServerThread(requestPacket);
 				wrqServerThread.start();
 			}
 			else {
-				System.err.println(Globals.getErrorMessage("Server", "invalid request packet"));
+				UIManager.printErrorMessage("Server", "invalid request packet");
 				errorHandler.sendIllegalOperationErrorPacket("cannot parse TFTP packet", requestPacket.getRemoteAddress(), requestPacket.getRemotePort());
 			}
 		}
@@ -76,13 +90,18 @@ public class Server implements Runnable {
 	}
 	
 	public void shutdown() {
-		System.out.println(Globals.getVerboseMessage("Server", "shutting down..."));
+		String[] messages1 = {
+				"shutting down...",
+				"shutting down..."
+		};
+		
+		UIManager.printMessage("Server", messages1);
 				
 		// wait for any connections that are to be classified
 		try {
 			Thread.sleep(1000);
 		} catch (InterruptedException e) {
-			System.err.println(Globals.getErrorMessage("Server", "cannot make current thread go to sleep."));
+			UIManager.printErrorMessage("Server", "cannot make current thread go to sleep.");
 			e.printStackTrace();
 			System.exit(-1);
 		}
@@ -95,32 +114,39 @@ public class Server implements Runnable {
 				shutdownClient.send(new DatagramPacket(new byte[0], 0, InetAddress.getLocalHost(), NetworkConfig.SERVER_PORT));
 				shutdownClient.close();
 			} catch (UnknownHostException e) {
-				System.err.println(Globals.getErrorMessage("Server", "cannot find localhost address."));
+				UIManager.printErrorMessage("Server", "cannot find localhost address.");
 				e.printStackTrace();
 				System.exit(-1);
 			} catch (IOException e) {
-				System.err.println(Globals.getErrorMessage("Server", "cannot send packet to server."));
+				UIManager.printErrorMessage("Server", "cannot send packet to server.");
 				e.printStackTrace();
 				System.exit(-1);
 			}
 		}
+
+		String[] messages2 = {
+				"goodbye",
+				String.format("server is shutdown. Port %d released.", tftpSocket.getPort())
+		};
 		
-		System.out.println(Globals.getVerboseMessage("Server", "goodbye!"));
+		UIManager.printMessage("Server", messages2);
 	}
 	
 	public static void main(String[] args) {
-		Server server = null;
+		UIManager.promptForUIMode();
+		
+		UIManager.showServerTitle();
+		
 		Thread serverThread = null;
 		
-		System.out.println("\nSYSC 3033 TFTP Server");
-		System.out.println("1. Start");
-		System.out.println("2. Exit");
-		System.out.println("Selection: ");
+		String[] options1 = {
+    			"Start server",
+    			"Close server",
+    	};
 		
-		int selection = 0;
-		Scanner sc = new Scanner(System.in);
-		selection = sc.nextInt();
+		int selection = UIManager.promptForOperationSelection(options1);
 		
+		Server server = null;
 		if (selection == 1) {
 			// create server a thread for it listen on
 			server = new Server();
@@ -128,30 +154,26 @@ public class Server implements Runnable {
 			serverThread.start();
 		}
 		else {
-			sc.close();
-			System.exit(0);
+			return;
 		}
 		
-		// shutdown option
-		String shutdownCommand = "";
-		while (!shutdownCommand.equals("quit")) {
-			System.out.println("\nSYSC 3033 TFTP Server");
-			System.out.println("Type quit to shutdown");
-			System.out.println("Selection: ");
-			
-			shutdownCommand = sc.nextLine();
-		}
+		String[] options2 = {
+    			"Close server",
+    	};
 		
-		if (shutdownCommand.equals("quit")) {
+		selection = UIManager.promptForOperationSelection(options2);
+		
+		if (selection == 1) {
 			server.shutdown();
-			sc.close();
 			try {
 				serverThread.join(1000);
 			} catch (InterruptedException e) {
-				System.err.println(Globals.getErrorMessage("Server", "cannot close server thread"));
+				UIManager.printErrorMessage("Server", "cannot close server thread");
 				e.printStackTrace();
 				System.exit(-1);
 			}
 		}
+		
+		UIManager.close();
 	}
 }

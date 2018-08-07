@@ -1,7 +1,6 @@
 import java.net.*;
 import java.nio.file.Paths;
 import java.util.Queue;
-import java.util.Scanner;
 
 /**
  * This class represents the client1
@@ -9,150 +8,156 @@ import java.util.Scanner;
  *
  */
 public class Client {
+	private TFTPSocket tftpSocket;
+   
+	private FileManager fileManager;
+	private ErrorHandler errorHandler;
+	private PacketHandler packetHandler;
+   
+	private InetAddress serverAddress;
+	private int serverPort;
+
+	/**
+	 * Constructor
+	 */
+	public Client(InetAddress serverAddress, int serverPort)
+	{
+		// create TFTP socket with the specified timeout period in the network configuration
+		tftpSocket = new TFTPSocket(NetworkConfig.TIMEOUT_TIME);
+		
+		// create error handler to different types of errors
+		errorHandler =  new  ErrorHandler(tftpSocket);
+	   
+		// create file manager to handle writing and reading files from the hard drive
+		fileManager = new FileManager();
+		
+		this.serverAddress = serverAddress;
+		
+		this.serverPort = serverPort;
+	}
+   
+	/**
+	 * Makes a read or write request
+	 * 
+	 * @param packetType   packet type
+	 * @param fileName     name of the file that is requested to be read or written (in bytes)
+	 * @param mode         mode (in bytes)
+	 * @param ipAddress    server IP address
+	 * @param port         server port
+	 */
+	private void makeReadWriteRequest(TFTPPacketType packetType, String fileName, String mode, InetAddress ipAddress, int port) {
+		TFTPPacket requestPacket = null;
+		
+		String verboseMessage = null;
+		if (packetType == TFTPPacketType.RRQ) {
+			// get read request packet
+			requestPacket = TFTPPacketBuilder.getRRQWRQDatagramPacket(TFTPPacketType.RRQ, fileName, mode, ipAddress, port);
+			verboseMessage = String.format("sent RRQ packet: %s", requestPacket.toString());
+		}
+		else {
+			// get write request packet
+			requestPacket = TFTPPacketBuilder.getRRQWRQDatagramPacket(TFTPPacketType.WRQ, fileName, mode, ipAddress, port);
+			verboseMessage = String.format("sent WRQ packet: %s", requestPacket.toString());
+		}
+		
+		// send request
+		tftpSocket.send(requestPacket);
+		
+        String[] messages = {
+        		"",
+        		verboseMessage
+        }; 
+        
+        UIManager.printMessage("Client", messages);        
+	}
 	
-   private TFTPSocket tftpSocket;
-   
-   private FileManager fileManager;
-   private ErrorHandler errorHandler;
-   private PacketHandler packetHandler;
-   
-   private InetAddress serverAddress;
-   private int serverPort;
-
-   /**
-    * Constructor
-    */
-   public Client()
-   {
-	   //tftpSocket = new TFTPSocket(0);
-	   tftpSocket = new TFTPSocket(NetworkConfig.TIMEOUT_TIME);
-	   errorHandler =  new  ErrorHandler(tftpSocket);
-
-	   
-	   // class for reading and writing files to hard drive 
-	   fileManager = new FileManager();
-	   
-	   try {
-		   serverAddress = InetAddress.getLocalHost();
-	   } catch (UnknownHostException e) {
-		   System.err.println(Globals.getErrorMessage("Client", "cannot get localhost address"));
-           e.printStackTrace();
-           System.exit(-1);
-	   }
-	   
-	   serverPort = NetworkConfig.PROXY_PORT;
-   }
-   
-   /**
-    * Makes a read or write request and returns the response packet
-    * 
-    * @param packetType   packet type
-    * @param fileName     name of the file that is requested to be read or written (in bytes)
-    * @param mode         mode (in bytes)
-    * @param ipAddress    server IP address
-    * @param port         server port
-    * 
-    * @Return Datagram packet received from the server after making a RRQ or WRQ request
-    */
-   private void makeReadWriteRequest(TFTPPacketType packetType, String fileName, String mode, InetAddress ipAddress, int port) {
-
-	   TFTPPacket requestPacket = null;
-	   
-	   if (packetType == TFTPPacketType.RRQ) {
-		   // get read request packet
-		   requestPacket = TFTPPacketBuilder.getRRQWRQDatagramPacket(TFTPPacketType.RRQ, fileName, mode, ipAddress, port);
-	   }
-	   else {
-		   // get write request packet
-		   requestPacket = TFTPPacketBuilder.getRRQWRQDatagramPacket(TFTPPacketType.WRQ, fileName, mode, ipAddress, port);
-	   }
-	   
-	   // send request
-	   tftpSocket.send(requestPacket);
-   }
-   
-   /**
-    * Handle DATA packets received from server with file data
-    * 
-    * @param filePath  path of the file that the client requests
-    * @param mode      mode of request
-    */
-   public void readFile(String filePath, String mode) {
-        DATAPacket dataPacket;
+	public void writeToFile(String fileName, DATAPacket dataPacket) {
+    	// creates a file first
+    	FileManager.FileManagerResult fmRes;
+    	if (dataPacket.getBlockNumber() == 1) {
+    		fmRes = fileManager.createFile(fileName);
+    		
+    		if (fmRes.error) {
+    			if (fmRes.accessViolation)
+    				// access violation error will send an error packet with error code 2 and the connection
+    				errorHandler.sendAccessViolationErrorPacket(String.format("write access denied to file: %s", fileName), serverAddress, serverPort);
+    			else if (fmRes.fileAlreadyExist)
+    				// file already exists will send an error packet with error code 6 and close the connection
+    				errorHandler.sendFileExistsErrorPacket(String.format("file already exists: %s", fileName), serverAddress, serverPort);
+    			else if (fmRes.diskFull)
+    				// disk full error will send an error packet with error code 3 and close the connection
+    				errorHandler.sendDiskFullErrorPacket(String.format("Not enough disk space for file: %s", fileName), serverAddress, serverPort);
+    			return;
+    		}
+    	}
+    	
+        // gets the data bytes from the DATA packet and converts it into a string
+    	byte[] fileData = dataPacket.getDataBytes();
         
-        // get file name from file path
-        String fileName = Paths.get(filePath).getFileName().toString();
-        
-        // make a read request and wait for response
-        try {
-            makeReadWriteRequest(TFTPPacketType.RRQ, 
-                    fileName, mode, InetAddress.getLocalHost(), NetworkConfig.PROXY_PORT);
-        } catch (UnknownHostException e) {
-            System.err.println(Globals.getErrorMessage("Client", "cannot get localhost address"));
-            e.printStackTrace();
-            System.exit(-1);
-        }
-        
-        packetHandler = new PacketHandler(tftpSocket, errorHandler, serverAddress, serverPort);
-
-	    short nextBlockNumber = 1; // expect to receive DATA with valid block number
-	   
+        // write file on client side
+        fmRes = fileManager.writeFile(fileName, fileData);           
+        if (fmRes.error) {
+			if (fmRes.accessViolation)
+				// access violation error will send an error packet with error code 2 and the connection
+				errorHandler.sendAccessViolationErrorPacket(String.format("write access denied to file: %s", fileName), serverAddress, serverPort);
+			else if (fmRes.fileAlreadyExist)
+				// file already exists will send an error packet with error code 6 and close the connection
+				errorHandler.sendFileExistsErrorPacket(String.format("file already exists: %s", fileName), serverAddress, serverPort);
+			else if (fmRes.diskFull)
+				// disk full error will send an error packet with error code 3 and close the connection
+			    errorHandler.sendDiskFullErrorPacket(String.format("Not enough disk space for file: %s", fileName), serverAddress, serverPort);
+			return;
+		}
+	}
+   
+	/**
+	* Handle DATA packets received from server with file data
+	* 
+	* @param filePath  path of the file that the client requests
+	* @param mode      mode of request
+	*/
+	public void readFile(String filePath, String mode) {
+		// get file name from file path
+		String fileName = Paths.get(filePath).getFileName().toString();
+		
+		// make a read request and wait for response
+		makeReadWriteRequest(TFTPPacketType.RRQ, fileName, mode, serverAddress, serverPort);
+		
+		// create a packet handler to handle sending and receiving packets
+		packetHandler = new PacketHandler(tftpSocket, errorHandler, serverAddress, serverPort);
+				
+		// expect to receive DATA with valid block number
+	    short expectedBlockNumber = 1;
+	 
 	   	// receive all data packets from server that wants to transfer a file.
 		// once the data length is less than 512 bytes then stop listening for
 		// data packets from the server
         int fileDataLen = NetworkConfig.DATAGRAM_PACKET_MAX_LEN;
         while (fileDataLen == NetworkConfig.DATAGRAM_PACKET_MAX_LEN) {
             // receive datagram packet
-        	dataPacket = packetHandler.receiveDATAPacket(nextBlockNumber);
+        	DATAPacket dataPacket = packetHandler.receiveDATAPacket(expectedBlockNumber);
         	
+        	// if the returned data packet is null, then an error occurred
         	if (dataPacket == null) {
         		return;
         	}
         	
-        	FileManager.FileManagerResult fmRes;
-        	if (dataPacket.getBlockNumber() == 1) {
-        		fmRes = fileManager.createFile(fileName);
-        		
-        		if (fmRes.error) {
-        			// access violation error will send an error packet with error code 2 and the connection
-        			if (fmRes.accessViolation)
-        				errorHandler.sendAccessViolationErrorPacket(String.format("write access denied to file: %s", fileName), serverAddress, serverPort);
-        			// disk full error will send an error packet with error code 3 and close the connection
-        			else if (fmRes.fileAlreadyExist)
-        				errorHandler.sendFileExistsErrorPacket(String.format("file already exists: %s", fileName), serverAddress, serverPort);
-        			else if (fmRes.diskFull)
-        				errorHandler.sendDiskFullErrorPacket(String.format("Not enough disk space for file: %s", fileName), serverAddress, serverPort);
-        			return;
-        		}
-        		 
-        	}
+        	writeToFile(fileName, dataPacket);
         	
-	        // gets the data bytes from the DATA packet and converts it into a string
-        	byte[] fileData = dataPacket.getDataBytes();
-	        
-	        // write file on client side
-            fmRes = fileManager.writeFile(fileName, fileData);           
-            if (fmRes.error) {
-    			// access violation error will send an error packet with error code 2 and the connection
-    			if (fmRes.accessViolation)
-    				errorHandler.sendAccessViolationErrorPacket(String.format("write access denied to file: %s", fileName), serverAddress, serverPort);
-    			// disk full error will send an error packet with error code 3 and close the connection
-    			else if (fmRes.fileAlreadyExist)
-    				errorHandler.sendFileExistsErrorPacket(String.format("file already exists: %s", fileName), serverAddress, serverPort);
-    			else if (fmRes.diskFull)
-    			    errorHandler.sendDiskFullErrorPacket(String.format("Not enough disk space for file: %s", fileName), serverAddress, serverPort);
-    			return;
-    		}
-	    
 	        // save the length of the received packet
 	        fileDataLen = dataPacket.getPacketLength();
 	        
 	        // send ACK packet
-	        packetHandler.sendACKPacket(nextBlockNumber);
-	        nextBlockNumber++;
+	        packetHandler.sendACKPacket(expectedBlockNumber);
+	        expectedBlockNumber++;
         }
         
-        System.out.println(Globals.getVerboseMessage("Client", "Finished with reading file."));
+        String[] messages = {
+        		"finsihed reading file",
+        		String.format("finished reading file %s from the server", filePath)
+        }; 
+        
+        UIManager.printMessage("Client", messages);
     }
     
     /**
@@ -166,19 +171,14 @@ public class Client {
         String fileName = Paths.get(filePath).getFileName().toString();
         
         // make a write request and wait for response
-        try {
-                makeReadWriteRequest(TFTPPacketType.WRQ, 
-                    fileName, mode, InetAddress.getLocalHost(), NetworkConfig.PROXY_PORT);
-        } catch (UnknownHostException e) {
-            System.err.println(Globals.getErrorMessage("Client", "cannot get localhost address"));
-            e.printStackTrace();
-            System.exit(-1);
-        }
+        makeReadWriteRequest(TFTPPacketType.WRQ, fileName, mode, serverAddress, serverPort);
         
-        packetHandler = new PacketHandler(tftpSocket, errorHandler, serverAddress, serverPort);
-        
+        // create a packet handler to handle sending and receiving packets
+     	packetHandler = new PacketHandler(tftpSocket, errorHandler, serverAddress, serverPort);
+     		
         ACKPacket ackPacket = packetHandler.receiveACKPacket((short) 0);
         
+        // if the returned ACK packet is null, then an error occurred
         if (ackPacket == null) {
         	return;
         }
@@ -193,18 +193,17 @@ public class Client {
     			fileData = res.fileBytes;
     		}
     		else {
-    			// access violation error will send an error packet with error code 2 and the connection
-    			if (res.accessViolation) 
+    			if (res.accessViolation)
+    				// access violation error will send an error packet with error code 2 and the connection
     				errorHandler.sendAccessViolationErrorPacket(String.format("read access denied to file: %s", fileName), serverAddress, serverPort);
-    			// file not found error will send an error packet with error code 1 and the connection
     			else if (res.fileNotFound)
+    				// file not found error will send an error packet with error code 1 and the connection
     				errorHandler.sendFileNotFoundErrorPacket(String.format("file not found: %s", fileName), serverAddress, serverPort);
-    				
     			return;
     		}
 	        
 	        // create list of DATA datagram packets that contain up to 512 bytes of file data
-	        Queue<DATAPacket> dataPacketStack = TFTPPacketBuilder.getStackOfDATADatagramPackets(fileData, serverAddress, serverPort);
+	        Queue<DATAPacket> dataPacketStack = TFTPPacketBuilder.getStackOfDATADatagramPackets(fileData, ackPacket.getRemoteAddress(), ackPacket.getRemotePort());
 	        
 	        DATAPacket dataPacket = null;
 	        while (!dataPacketStack.isEmpty()) {
@@ -215,66 +214,111 @@ public class Client {
 				
 				ackPacket = packetHandler.receiveACKPacket(dataPacket);
 				
+				// if the returned ACK packet is null, then an error occurred
 				if (ackPacket == null) {
 					return;
 				}
 				
+				// remove DATA packet from queue
 				dataPacketStack.poll();
 	        }
         }
         
-        System.out.println(Globals.getVerboseMessage("Client", "Finished with writing file."));
+        String[] messages = {
+        		"finished writing file",
+        		String.format("finished writing file %s to the server", filePath)
+        }; 
+        UIManager.printMessage("Client", messages);
     }
     
     /**
-        * Closes the datagram socket when the connection is finished
-        */
+     * Closes the datagram socket when the connection is finished
+     * */
     public void shutdown() {
         tftpSocket.close();
+    }
+    
+    public String getIPAddress() {
+    	return tftpSocket.getIPAddress().getHostAddress();
+    }
+    
+    public int getPort() {
+    	return tftpSocket.getPort();
     }
 
     public static void main(String args[])
     {
-        Client c = new Client();
-        
-        Scanner sc = new Scanner(System.in);
-        
-        int userInput = 0;
-        do
-        {
-            System.out.println("\nSYSC 3033 Client");
-            System.out.println("1. Write file to Server");
-            System.out.println("2. Read file from Server");
-            System.out.println("3. Close Client");
-            System.out.print("Enter choice (1-3): ");
-            userInput = sc.nextInt();
-            sc.nextLine();
-
-            if (userInput == 1)
-            {
-                System.out.print("Enter path to file to write to Server: ");
-                String filePath = sc.nextLine();
-            
-                c.writeFile(filePath, "asciinet");
-            }
-            else if (userInput == 2)
-            {
-                System.out.print("Enter the file name to read from Server: ");
-                String fileName = sc.nextLine();
-                
-                c.readFile(fileName, "asciinet");
-            }
-            else if (userInput == 3)
-            {
-                c.shutdown();
-            }
-            else
-            {
-                System.out.println("Wrong input number!\nEnter integer number 1-3!");
-            }
-        }
-        while (userInput != 3);
-        
-        sc.close();
+    	UIManager.promptForUIMode();
+    	
+    	InetAddress serverAddress = null;
+		try {
+			serverAddress = InetAddress.getLocalHost();
+		} catch (UnknownHostException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    	int serverPort = NetworkConfig.SERVER_PORT;
+    	
+    	String[] options1 = {
+    		"Normal Mode",
+    		"Test Mode"
+    	};
+    	
+    	int selection = UIManager.promptForOperationSelection(options1);
+    	
+    	if (selection == 2) {
+    		serverPort = NetworkConfig.PROXY_PORT;
+    	}
+    	
+    	String ipAddress = UIManager.promptForIPAddress();
+    	if (!ipAddress.equals("")) {
+    		try {
+				serverAddress = InetAddress.getByName(ipAddress);
+			} catch (UnknownHostException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+    	}
+    	
+    	Client c = new Client(serverAddress, serverPort);
+    	
+    	UIManager.showClientTitle();
+    	
+    	String[] options2 = {
+    			"Write file to server",
+    			"Read file to server",
+    			"Close client"
+    	};
+    	
+    	while (selection != 3) {
+	    	selection = UIManager.promptForOperationSelection(options2);
+	    	
+	    	if (selection == 1) {
+	    		String filePath = UIManager.promptForFileSelection();
+	    		c.writeFile(filePath, "asciinet");
+	    	}
+	    	else if (selection == 2) {
+	    		String filePath = UIManager.promptForFileSelection();
+	    		c.readFile(filePath, "asciinet");
+	    	}
+    	}
+    	
+    	String[] messagesBeforeShutdown = {
+				"shutting down client...",
+				"shutting down client..."
+		};
+		
+		UIManager.printMessage("Client", messagesBeforeShutdown);
+		
+		String[] messagesAfterShutdown = {
+				"client closed",
+				String.format("client closed. Released port %d.", c.getPort())
+		};
+		
+		c.shutdown();
+		
+		UIManager.printMessage("Client", messagesAfterShutdown);
+    	
+    	UIManager.close();
     }
 }

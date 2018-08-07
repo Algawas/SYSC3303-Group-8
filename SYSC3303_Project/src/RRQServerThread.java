@@ -29,7 +29,6 @@ public class RRQServerThread extends Thread {
 		
 		remoteAddress = requestPacket.getRemoteAddress();
 		remotePort = requestPacket.getRemotePort();
-		packetHandler = new PacketHandler(tftpSocket, errorHandler, remoteAddress, remotePort);
 		
 		fileManager = new FileManager();
 		errorHandler = new ErrorHandler(tftpSocket);
@@ -60,7 +59,7 @@ public class RRQServerThread extends Thread {
 			 * 
 			 * The current read request thread will be terminated
 			 */
-			System.err.println(Globals.getErrorMessage("RRQServerThread", "cannot parse RRQ TFTP packet"));
+			UIManager.printErrorMessage("RRQServerThread", "cannot parse RRQ TFTP packet");
 			errorHandler.sendIllegalOperationErrorPacket("invalid RRQ TFTP packet", remoteAddress, remotePort);
 			return;
 		}
@@ -109,14 +108,22 @@ public class RRQServerThread extends Thread {
 			dataPacketStack.poll();
 		}
 		
-		System.out.println(Globals.getVerboseMessage("RRQServerThread", "connection finished"));
+		String[] messages = {
+				"read request connection finished",
+				String.format("read request connection finished with client %s:%d", remoteAddress, remotePort)
+		};
+		UIManager.printMessage("RRQServerThread", messages);
 	}
 	
 	/**
 	 * Closes datagram socket once the connection is finished
 	 */
 	private void cleanUp() {
-		System.out.println(Globals.getVerboseMessage("RRQServerThread", "socket closed"));
+		String[] messages = {
+				"socket closed",
+				String.format("socket closed. Port %d released", tftpSocket.getPort())
+		};	
+		UIManager.printMessage("RRQServerThread", messages);
 		tftpSocket.close();
 	}
 }

@@ -89,4 +89,9 @@ public class ACKPacket extends TFTPPacket {
 		
 		return ackPacket;
 	}
+	
+	public String toString() {
+		return String.format("ACK Packet: OPCode: %d, Block number: %d, Packet size: %d", opCode, blockNumber, packetLength);
+	}
+	
 }

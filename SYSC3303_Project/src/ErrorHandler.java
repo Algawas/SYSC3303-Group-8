@@ -27,7 +27,7 @@ public class ErrorHandler {
     private void sendErrorPacket(short errorCode, String errorMessage, InetAddress remoteAddress, int remotePort) {
         ERRORPacket errorPacket = TFTPPacketBuilder.getERRORDatagram(errorCode, errorMessage, remoteAddress, remotePort);
        
-        System.err.println(Globals.getErrorMessage("ErrorHandler", String.format("sending error packet, errorCode: %d, errorMessage: %s", errorCode, errorMessage)));
+        UIManager.printErrorMessage("ErrorHandler", String.format("sending %s to %s:%d", errorPacket.toString(), remoteAddress, remotePort));
         tftpSocket.send(errorPacket);
     }
     

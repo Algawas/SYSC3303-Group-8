@@ -58,7 +58,7 @@ public class WRQServerThread extends Thread {
 			 * 
 			 * The current write request thread will be terminated
 			 */
-			System.err.println(Globals.getErrorMessage("WRQServerThread", "cannot parse WRQ TFTP packet"));
+			UIManager.printErrorMessage("WRQServerThread", "cannot parse WRQ TFTP packet");
 			errorHandler.sendIllegalOperationErrorPacket("invalid WRQ TFTP packet", remoteAddress, remotePort);
 			return;
 		}
@@ -93,8 +93,13 @@ public class WRQServerThread extends Thread {
 		DATAPacket dataPacket = null;
 		while (dataLenReceived == NetworkConfig.DATAGRAM_PACKET_MAX_LEN) { 
 			blockNumber++;
-			System.out.println(Globals.getVerboseMessage("WRQServerThread", 
-					String.format("waiting for DATA packet from client %s:%d", remoteAddress, remotePort)));
+			
+			String[] messages1 = {
+					"",
+					String.format("waiting for DATA packet from client %s:%d", remoteAddress, remotePort)
+			};
+			
+			UIManager.printMessage("WRQServerThread", messages1);
 			
 			// receives data packet from client
 			dataPacket = packetHandler.receiveDATAPacket(blockNumber);
@@ -121,7 +126,12 @@ public class WRQServerThread extends Thread {
 				return;
 			}
 			
-			System.out.println(Globals.getVerboseMessage("WRQServerThread", String.format("finsihed writing data to file %s", fileName)));
+			String[] messages2 = {
+					"",
+					String.format("finsihed writing data from DATA packet %d to file %s", dataPacket.getBlockNumber(), fileName)
+			};
+			
+			UIManager.printMessage("WRQServerThread", messages2);
 			
 			// save the length of file data that was just saved
 			dataLenReceived = dataPacket.getPacketLength();
@@ -129,14 +139,25 @@ public class WRQServerThread extends Thread {
 			packetHandler.sendACKPacket(blockNumber);
 		}
 		
-		System.out.println(Globals.getVerboseMessage("WRQServerThread", "connection is finsihed"));
+		String[] messages3 = {
+				String.format("finsihed writing file %s", wrqPacket.getFileName()),
+				String.format("finsihed writing file %s", wrqPacket.getFileName())
+		};
+		
+		UIManager.printMessage("WRQServerThread", messages3);
 	}
 	
 	/**
 	 * Closes datagram socket once the connection is finished
 	 */
 	private void cleanUp() {
-		System.out.println(Globals.getVerboseMessage("WRQServerThread", "closing socket"));
+		
+		String[] messages = {
+				"",
+				"closing socket..."
+		};
+		
+		UIManager.printMessage("WRQServerThread", messages);
 		tftpSocket.close();
 	}
 }
