@@ -3,7 +3,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.FileNotFoundException;
-//TODO ERROR CODE 2 NOT WORKING IN LABS
+
 /**
  * This class provides an interface for objects to write or read files from hard drive
  * 
@@ -89,12 +89,18 @@ public class FileManager {
 		FileManagerResult res = new FileManagerResult();
 		
 		String fileNameFull = System.getProperty("user.dir") + File.separator + destinationDirectoryStr + File.separator + fileName;
+		//String fileNameFull = "C:" + File.separator + destinationDirectoryStr + File.separator + fileName;
 		File file = new File(fileNameFull);
 		
 		// create a new file if it does not exist
 		try {
-			if (!file.getParentFile().exists())
-				file.getParentFile().mkdirs();
+			if (!file.getParentFile().exists()) {
+				if (!file.getParentFile().mkdirs()) {
+					res.accessViolation = true;
+					res.error = true;
+					return res;
+				}
+			}
 			
 			if (file.exists()) {
 				res.fileAlreadyExist = true;
