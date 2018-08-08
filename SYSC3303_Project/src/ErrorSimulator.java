@@ -163,6 +163,7 @@ public class ErrorSimulator implements Runnable {
 
 				if (((errorSelection == 2) || (errorSelection == 4) || (errorSelection == 5) || (errorSelection == 6))
 						&& (errorOp == TFTPPacketType.RRQ || errorOp == TFTPPacketType.WRQ)) {
+					System.out.println("The errorOP is " + errorOp);
 					receiveTFTPacket = simulateIllegalOperationError(receiveTFTPacket, errorSelection, errorOp,
 							errorBlock);
 				}
@@ -276,6 +277,7 @@ public class ErrorSimulator implements Runnable {
 	
 	// Checks the PacketType, and block, and simulates the appropriate error on it
 	private TFTPPacket simulateIllegalOperationError(TFTPPacket tftpPacket, int code, TFTPPacketType op, short block) {
+		System.out.println("The tftpPacket is " + tftpPacket.getPacketType());
 		TFTPPacket corruptedPacket = tftpPacket;
 
 		if (tftpPacket.getPacketType() == op) {
@@ -293,10 +295,13 @@ public class ErrorSimulator implements Runnable {
 				}
 
 				if (code == 2) {
+					System.out.println("The tftpPacket is reached");
 					if (errorCorrupt == 1)// corrupt opcode
 						corruptedPacket = corruptOpCode(rrqwrq);
-					else if (errorCorrupt == 2)// corrupt mode
+					else if (errorCorrupt == 2) {// corrupt mode
+						System.out.println("Code is being reached");
 						corruptedPacket = corruptMode(rrqwrq);
+					}
 					else if ((errorCorrupt == 3) || (errorCorrupt == 4))
 						corruptedPacket = corruptZeroByte(rrqwrq, errorCorrupt);
 				} else if (code == 4)
@@ -557,11 +562,13 @@ public class ErrorSimulator implements Runnable {
 	}
 	// Hardcodes a wrong mode, and returns a byte
 	private RRQWRQPacket corruptMode(RRQWRQPacket rrqwrq) {
+		System.out.println("old mode is " + rrqwrq.getMode());
 		String mode = pickRandomMode(rrqwrq.getMode());
 
-		RRQWRQPacket corruptRRQWRQPacket = RRQWRQPacket.buildPacket(rrqwrq.getPacketType(), rrqwrq.getFileName(), mode,
+		RRQWRQPacket corruptRRQWRQPacket = RRQWRQPacket.buildPacket(rrqwrq.getPacketType(), rrqwrq.getFileName(), "octet",
 				rrqwrq.getRemoteAddress(), rrqwrq.getRemotePort());
 
+		System.out.println("old mode is " + corruptRRQWRQPacket.getMode());
 		return corruptRRQWRQPacket;
 	}
 
@@ -701,7 +708,9 @@ public class ErrorSimulator implements Runnable {
 					System.out.println("3. The first 0 byte");
 					System.out.println("4. The last 0 byte");
 					selection = sc.nextInt();
+					
 					proxy.errorCorrupt = selection;
+					System.out.println("The errorCorrupt is " + proxy.errorCorrupt);
 				}
 				if ((proxy.errorOp == TFTPPacketType.ACK || proxy.errorOp == TFTPPacketType.DATA)) {
 					System.out.println("Which block would you like to corrupt?");
