@@ -3,7 +3,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.FileNotFoundException;
-
+//TODO ERROR CODE 2 NOT WORKING IN LABS
 /**
  * This class provides an interface for objects to write or read files from hard drive
  * 
@@ -12,7 +12,7 @@ import java.io.FileNotFoundException;
 
 public class FileManager {
 	// directory where the file that are transferred will be saved
-	private static String destinationDirectoryStr = "transfered_files";
+	private static String destinationDirectoryStr = "Transferred_Files";
 	
 	/**
 	 * This class has the necessary variables to indicate the result

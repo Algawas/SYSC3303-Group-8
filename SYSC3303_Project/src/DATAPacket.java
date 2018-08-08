@@ -129,5 +129,5 @@ public class DATAPacket extends TFTPPacket {
 	public String toString() {
 		return String.format("DATA Packet: OPCode: %d, Block number: %d, Packet size: %d", opCode, blockNumber, packetLength);
 	}
-	
+	//TODO MAKE THE BYTES OR BLOCK NUMBER LOOP BACK TO 0, IT GOES TO NEGATIVE WHEN IT'S ABOUT 20 MEGS.
 }

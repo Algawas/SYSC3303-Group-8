@@ -239,7 +239,7 @@ public class PacketHandler {
 					continue;
 				}
 				else if (dataPacket.getBlockNumber() > expectedBlockNumber) {
-					String errorMessage = String.format("incorrect ACK packet block number received. Expected: %d, Received: %d", expectedBlockNumber, dataPacket.getBlockNumber());
+					String errorMessage = String.format("incorrect DATA packet block number received. Expected: %d, Received: %d", expectedBlockNumber, dataPacket.getBlockNumber());
 					UIManager.printErrorMessage("PacketHandler", errorMessage);
 					errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
 				}

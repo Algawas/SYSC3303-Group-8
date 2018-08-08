@@ -24,6 +24,8 @@ public class ErrorSimulator implements Runnable {
 	private TFTPPacketType errorOp;
 	// packet's block number to modify
 	private short errorBlock;
+	
+	private short newBlockNumber;
 	// error corrupt (mode or opcode)
 	private int errorCorrupt;
 	// gets delay time input from user
@@ -35,13 +37,22 @@ public class ErrorSimulator implements Runnable {
 	private boolean duplicate = false;
 
 	public ErrorSimulator() {
-		try {
-			serverThreadAddress = InetAddress.getLocalHost();
-		} catch (UnknownHostException e) {
-			UIManager.printErrorMessage("Error Simulator", "cannot get localhost address");
-			e.printStackTrace();
-			System.exit(-1);
+		while (true) {
+			String IPAddress = UIManager.promptForIPAddress();
+
+			// save server address and port
+			try {
+				serverThreadAddress = InetAddress.getByName(IPAddress);
+				System.out.println("Server Address is: " + serverThreadAddress);
+				break;
+			} catch (UnknownHostException e) {
+				UIManager.printErrorMessage("Error Simulator", "cannot get the Server IP address");
+				e.printStackTrace();
+				//System.exit(-1);
+				continue;
+			}
 		}
+		
 		serverThreadPort = NetworkConfig.SERVER_PORT;
 
 		// create a datagram socket to establish a connection with incoming
@@ -65,14 +76,7 @@ public class ErrorSimulator implements Runnable {
 		this.clientAddress = tftpPacket.getRemoteAddress();
 		this.clientPort = tftpPacket.getRemotePort();
 
-		// save server address and port
-		try {
-			serverThreadAddress = InetAddress.getLocalHost();
-		} catch (UnknownHostException e) {
-			UIManager.printErrorMessage("Error Simulator", "cannot get localhost address");
-			e.printStackTrace();
-			System.exit(-1);
-		}
+		// save server port
 		serverThreadPort = NetworkConfig.SERVER_PORT;
 
 		if (!lose) {
@@ -285,6 +289,8 @@ public class ErrorSimulator implements Runnable {
 						corruptedPacket = corruptOpCode(rrqwrq);
 					else if (errorCorrupt == 2)// corrupt mode
 						corruptedPacket = corruptMode(rrqwrq);
+					else if ((errorCorrupt == 3) || (errorCorrupt == 4))
+						corruptedPacket = corruptZeroByte(rrqwrq, errorCorrupt);
 				} else if (code == 4)
 					activateLosePacket();
 				else if (code == 5)
@@ -309,8 +315,25 @@ public class ErrorSimulator implements Runnable {
 				}
 
 				if (data.getBlockNumber() == block) {
-					if (code == 2)
-						corruptedPacket = corruptOpCode(data);
+					
+					System.out.println("The newBlockNumber is " + newBlockNumber);
+					System.out.println("The errorCorruptNumber is " + errorCorrupt);
+					System.out.println("The data.getBlockNumber() is " + data.getBlockNumber());
+					
+					if (code == 2) {
+						if (errorCorrupt == 1)
+							corruptedPacket = corruptOpCode(data);
+						else if (errorCorrupt == 2)
+							corruptedPacket = corruptBlockNumber(data, newBlockNumber);
+						
+						try {
+							corruptedPacket = new DATAPacket(corruptedPacket);
+						} catch (TFTPPacketParsingError e) {
+							UIManager.printErrorMessage("Error Simulator", "cannot parse TFTP DATA Packet");
+							e.printStackTrace();
+							System.exit(-1);
+						}
+					}
 					else if (code == 4)
 						activateLosePacket();
 					else if (code == 5)
@@ -334,8 +357,20 @@ public class ErrorSimulator implements Runnable {
 				}
 
 				if (ack.getBlockNumber() == block) {
-					if (code == 2)
-						corruptedPacket = corruptOpCode(ack);
+					if (code == 2) {
+						if (errorCorrupt == 1)
+							corruptedPacket = corruptOpCode(ack);
+						else if (errorCorrupt == 2)
+							corruptedPacket = corruptBlockNumber(ack, newBlockNumber);
+						
+						try {
+							corruptedPacket = new ACKPacket(corruptedPacket);
+						} catch (TFTPPacketParsingError e) {
+							UIManager.printErrorMessage("Error Simulator", "cannot parse TFTP DATA Packet");
+							e.printStackTrace();
+							System.exit(-1);
+						}
+					}
 					else if (code == 4)
 						activateLosePacket();
 					else if (code == 5)
@@ -374,6 +409,38 @@ public class ErrorSimulator implements Runnable {
 		}
 	}
 
+	private TFTPPacket corruptZeroByte(TFTPPacket tftpPacket, int error) {
+		
+		byte[] corruptedBytes = tftpPacket.getPacketBytes();
+		int last = corruptedBytes.length - 1;
+		
+		System.out.println("Last byte in tftppacket is " + corruptedBytes[last]);
+		// hardcoded corruption
+		if(error == 4) {
+			corruptedBytes[last] = 1;
+			System.out.println("Last byte in tftppacket is now " + corruptedBytes[last]);
+		} else if (error == 3) {
+			for(int i = 2; i <= last ; i++) {
+				if (corruptedBytes[i] == 0) {
+					System.out.println("The tftppacket at i " + corruptedBytes[i]);
+					corruptedBytes[i] = 1;
+					System.out.println("The tftppacket at i is now " + corruptedBytes[i]);
+					break;
+				}
+			}
+		}
+
+		TFTPPacket corruptedTFTPPacket = null;
+		try {
+			corruptedTFTPPacket = new TFTPPacket(corruptedBytes, 0, corruptedBytes.length,
+					tftpPacket.getRemoteAddress(), tftpPacket.getRemotePort());
+		} catch (TFTPPacketParsingError e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		return corruptedTFTPPacket;
+	}
 	// Hardcodes a wrong OPcode into the packet and returns the byte
 	private TFTPPacket corruptOpCode(TFTPPacket tftpPacket) {
 
@@ -395,6 +462,35 @@ public class ErrorSimulator implements Runnable {
 		return corruptedTFTPPacket;
 	}
 
+	private TFTPPacket corruptBlockNumber(TFTPPacket tftpPacket, short block) {
+		byte[] corruptedBytes = tftpPacket.getPacketBytes();
+		byte[] blockBytes = ByteConversions.shortToBytes(block);
+		
+		System.out.println("blockBytes short is " + block);
+		System.out.println("blockBytes length is " + blockBytes.length);
+		System.out.println("blockBytes[0] is " + blockBytes[0]);
+		System.out.println("blockBytes[1] is " + blockBytes[1]);
+		
+		// hardcoded corruption
+		corruptedBytes[2] = blockBytes[0];
+		corruptedBytes[3] = blockBytes[1];
+		
+		byte[] temp = {corruptedBytes[2], corruptedBytes[3]};
+		
+		if (temp != null)
+			System.out.println("blockBytes[1] is " + ByteConversions.bytesToShort(temp));
+
+		TFTPPacket corruptedTFTPPacket = null;
+		try {
+			corruptedTFTPPacket = new TFTPPacket(corruptedBytes, 0, corruptedBytes.length,
+					tftpPacket.getRemoteAddress(), tftpPacket.getRemotePort());
+		} catch (TFTPPacketParsingError e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		return corruptedTFTPPacket;
+	}
 	// Hardcodes a wrong mode, and returns a byte
 	private RRQWRQPacket corruptMode(RRQWRQPacket rrqwrq) {
 		String mode = pickRandomMode(rrqwrq.getMode());
@@ -529,17 +625,33 @@ public class ErrorSimulator implements Runnable {
 						break;
 					}
 				}
+				//TODO RECEIVING SIDE DOESN'T CHECK FORMAT OF WRQ OR RRQ PROPERLY (DOESN'T CHECK THE LAST 0 BYTE) 
 				if ((proxy.errorSelection == 2)
 						&& ((proxy.errorOp == TFTPPacketType.WRQ) || (proxy.errorOp == TFTPPacketType.RRQ))) {
 					System.out.println("What would you like to corrupt?");
 					System.out.println("1. OP Code");
 					System.out.println("2. Mode");
+					System.out.println("3. The first 0 byte");
+					System.out.println("4. The last 0 byte");
+					selection = sc.nextInt();
 					proxy.errorCorrupt = selection;
 				}
 				if ((proxy.errorOp == TFTPPacketType.ACK || proxy.errorOp == TFTPPacketType.DATA)) {
 					System.out.println("Which block would you like to corrupt?");
 					selection = sc.nextInt();
 					proxy.errorBlock = (short) selection;
+					if (proxy.errorSelection == 2) {
+						System.out.println("What would you like to corrupt?");
+						System.out.println("1. OP Code");
+						System.out.println("2. Block Number");
+						selection = sc.nextInt();
+						proxy.errorCorrupt = selection;
+						if (proxy.errorCorrupt == 2) {
+							System.out.println("What would you like to change the block number to?");
+							selection = sc.nextInt();
+							proxy.newBlockNumber = (short) selection;
+						}
+					}
 				}
 				if ((proxy.errorSelection == 5) || (proxy.errorSelection == 6)) {
 					System.out.println("How long of a delay would you like? (in milliseconds)");

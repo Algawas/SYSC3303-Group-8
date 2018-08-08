@@ -131,7 +131,7 @@ public class Server implements Runnable {
 		
 		UIManager.printMessage("Server", messages2);
 	}
-	
+	//TODO MAKE THE CLOSE TO QUIT
 	public static void main(String[] args) {
 		UIManager.promptForUIMode();
 		

@@ -11,7 +11,7 @@ public class UIManager {
 		if (!verboseMode)
 			System.out.println(String.format("VERBOSE: %s - %s", className, messages[1]));
 		else
-			System.out.println(String.format("NORMAL: %s - %s", className, messages[0]));
+			System.out.println(String.format("QUIET: %s - %s", className, messages[0]));
 		
 	}
 	
@@ -22,7 +22,7 @@ public class UIManager {
 	public static void promptForUIMode() {
 		System.out.println("Select UI mode");
 		String[] options = {
-				"Normal Mode",
+				"Quiet Mode",
 				"Verbose Mode"
 		};
 		
