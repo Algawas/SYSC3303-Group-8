@@ -25,13 +25,16 @@ public class ErrorSimulator implements Runnable {
 	// packet's block number to modify
 	private short errorBlock;
 	
+	// new block number to be changed into
 	private short newBlockNumber;
 	// error corrupt (mode or opcode)
 	private int errorCorrupt;
 	// gets delay time input from user
 	private int delayTime;
 	
+	// checks if user wants to corrupt error packet
 	private boolean corruptErrPacket;
+	// error corrupt option for corrupting error packet
 	private int corruptErrPacketCorrupt;
 
 	//flag for losing a packet
@@ -155,6 +158,9 @@ public class ErrorSimulator implements Runnable {
 			if (receiveTFTPacket == null) {
 				continue;
 			}
+			
+			System.out.println("corruptErrPacket is " + corruptErrPacket);
+			System.out.println("receiveTFTPacket.getPacketType() is " + receiveTFTPacket.getPacketType());
 
 			// checks if the incoming packet is a request packet
 			// if so then reset the server port back to the main port
@@ -170,18 +176,19 @@ public class ErrorSimulator implements Runnable {
 
 				receiveTFTPacket = establishNewConnection(receiveTFTPacket);
 			}
-			else if ((receiveTFTPacket.getPacketType() == TFTPPacketType.ERROR) && corruptErrPacket) {
-				receiveTFTPacket = simulateIllegalOperationError(receiveTFTPacket, errorSelection, TFTPPacketType.ERROR,
-						errorBlock);
-			}
 
 			// if not a request packet, it checks which error needs to be done, and does
 			// them
-			else {
-				if ((errorSelection == 2) || (errorSelection == 4) || (errorSelection == 5) || (errorSelection == 6)) {
+			else if ((errorSelection == 2) || (errorSelection == 4) || (errorSelection == 5) || (errorSelection == 6)) {
 					receiveTFTPacket = simulateIllegalOperationError(receiveTFTPacket, errorSelection, errorOp,
 							errorBlock);
-				}
+			}
+			
+
+			if ((receiveTFTPacket.getPacketType() == TFTPPacketType.ERROR) && corruptErrPacket) {
+				System.out.println("Error is being reached");
+				receiveTFTPacket = simulateIllegalOperationError(receiveTFTPacket, errorSelection, TFTPPacketType.ERROR,
+						errorBlock);
 			}
 
 			if (!lose) {
@@ -565,7 +572,7 @@ public class ErrorSimulator implements Runnable {
 		System.out.println("old mode is " + rrqwrq.getMode());
 		String mode = pickRandomMode(rrqwrq.getMode());
 
-		RRQWRQPacket corruptRRQWRQPacket = RRQWRQPacket.buildPacket(rrqwrq.getPacketType(), rrqwrq.getFileName(), "octet",
+		RRQWRQPacket corruptRRQWRQPacket = RRQWRQPacket.buildPacket(rrqwrq.getPacketType(), rrqwrq.getFileName(), mode,
 				rrqwrq.getRemoteAddress(), rrqwrq.getRemotePort());
 
 		System.out.println("old mode is " + corruptRRQWRQPacket.getMode());
@@ -653,32 +660,33 @@ public class ErrorSimulator implements Runnable {
 			proxy = new ErrorSimulator();
 			proxy.errorSelection = selection; // so the errorSimulator knows what to do
 
-			if ((proxy.errorSelection != 3) && (proxy.errorSelection != 1)) {
+			if ((proxy.errorSelection != 3) && (proxy.errorSelection != 1) && (proxy.errorSelection != 7)) {
 				// Invalid TFTP
 				System.out.println("Which operation would you like to simulate an error?");
 				System.out.println("1. READ");
 				System.out.println("2. WRITE");
 				System.out.println("3. DATA");
 				System.out.println("4. ACK");
-				//System.out.println("5. ERROR");
-				System.out.println("6. Any"); //
-				System.out.println("7. Exit");
+				System.out.println("5. Any"); //
+				System.out.println("6. Exit");
 				System.out.println("Selection: ");
 
 				selection = sc.nextInt();
 
 				// shutsdown
-				if (selection == 7) {
+				if (selection == 6) {
 					sc.close();
 					System.exit(0);
 				}
 				// picks random packet
-				else if (selection == 6) {
+				else if (selection == 5) {
 					Random rand = new Random();
 					TFTPPacketType[] types = TFTPPacketType.values();
 					proxy.errorOp = types[rand.nextInt(types.length)];
 					System.out.println("Randomly chose packet of type " + proxy.errorOp);
-				} else {
+				}
+				
+				else {
 					switch (selection) {
 					case 1:
 						proxy.errorOp = TFTPPacketType.RRQ;
@@ -691,9 +699,6 @@ public class ErrorSimulator implements Runnable {
 						break;
 					case 4:
 						proxy.errorOp = TFTPPacketType.ACK;
-						break;
-					case 5:
-						proxy.errorOp = TFTPPacketType.ERROR;
 						break;
 					default:
 						break;
@@ -752,12 +757,32 @@ public class ErrorSimulator implements Runnable {
 						proxy.corruptErrPacket = false;
 					
 				}
+			} else if (proxy.errorSelection == 7) {
+				System.out.println("Would you like to corrupt an ERROR packet?");
+				System.out.println("(Will only work in testing error codes 1, 2, 3 and 6)");
+				System.out.println("1. Yes");
+				System.out.println("2. No");
+				selection = sc.nextInt();
+				if (selection == 1) {
+					proxy.corruptErrPacket = true;
+					System.out.println("What would you like to corrupt?");
+					System.out.println("1. OP Code");
+					System.out.println("2. Error Code");
+					System.out.println("3. The Last Zero Byte");
+					selection = sc.nextInt();
+					proxy.corruptErrPacketCorrupt = selection;
+				}
+				else if (selection == 0)
+					proxy.corruptErrPacket = false;
+				
 			}
 
 			proxyThread = new Thread(proxy);
 			proxyThread.start();
 
-		} else {
+		}
+		
+		else {
 			sc.close();
 			System.exit(0);
 		}
