@@ -30,6 +30,9 @@ public class ErrorSimulator implements Runnable {
 	private int errorCorrupt;
 	// gets delay time input from user
 	private int delayTime;
+	
+	private boolean corruptErrPacket;
+	private int corruptErrPacketCorrupt;
 
 	//flag for losing a packet
 	private boolean lose = false;
@@ -166,6 +169,10 @@ public class ErrorSimulator implements Runnable {
 
 				receiveTFTPacket = establishNewConnection(receiveTFTPacket);
 			}
+			else if ((receiveTFTPacket.getPacketType() == TFTPPacketType.ERROR) && corruptErrPacket) {
+				receiveTFTPacket = simulateIllegalOperationError(receiveTFTPacket, errorSelection, TFTPPacketType.ERROR,
+						errorBlock);
+			}
 
 			// if not a request packet, it checks which error needs to be done, and does
 			// them
@@ -266,6 +273,7 @@ public class ErrorSimulator implements Runnable {
 		System.out.println("The duplicate packet has been sent");
 	}
 
+	
 	// Checks the PacketType, and block, and simulates the appropriate error on it
 	private TFTPPacket simulateIllegalOperationError(TFTPPacket tftpPacket, int code, TFTPPacketType op, short block) {
 		TFTPPacket corruptedPacket = tftpPacket;
@@ -344,7 +352,7 @@ public class ErrorSimulator implements Runnable {
 					errorSelection = 1;
 				}
 				// }
-			} else {
+			} else if (op == TFTPPacketType.ACK) {
 				// if (code == 2) { // corrupts op code only, there is not mode in ACK
 				ACKPacket ack = null;
 
@@ -381,7 +389,45 @@ public class ErrorSimulator implements Runnable {
 					errorSelection = 1;
 				}
 				// }
+			} else if (op == TFTPPacketType.ERROR) {
+				
+				System.out.println("Error is being reached");
+				
+				ERRORPacket error = null;
+
+				try {
+					error = new ERRORPacket(tftpPacket);
+				} catch (TFTPPacketParsingError e) {
+					UIManager.printErrorMessage("Error Simulator", "cannot parse TFTP ACK Packet");
+					e.printStackTrace();
+					System.exit(-1);
+				}
+
+				if (corruptErrPacketCorrupt == 1) {
+					System.out.println("Corrupt error op code is being reached");
+					corruptedPacket = corruptOpCode(error);
+				}
+				else if (corruptErrPacketCorrupt == 2) {
+					System.out.println("Corrupt error error code is being reached");
+					corruptedPacket = corruptErrorCode(error);
+				}
+				else if (corruptErrPacketCorrupt == 3) {
+					System.out.println("Corrupt error zero byte is being reached");
+					corruptedPacket = corruptZeroByte(error, 4);
+				}
+
+				try {
+					corruptedPacket = new ERRORPacket(corruptedPacket);
+				} catch (TFTPPacketParsingError e) {
+					UIManager.printErrorMessage("Error Simulator", "cannot parse TFTP DATA Packet");
+					e.printStackTrace();
+					System.exit(-1);
+				}
+
+				errorSelection = 1;
+				corruptErrPacket = false;
 			}
+
 		}
 
 		return corruptedPacket;
@@ -409,6 +455,24 @@ public class ErrorSimulator implements Runnable {
 		}
 	}
 
+	private TFTPPacket corruptErrorCode(TFTPPacket tftpPacket) {
+		byte[] corruptedBytes = tftpPacket.getPacketBytes();
+		// hardcoded corruption
+		corruptedBytes[2] = 1;
+		corruptedBytes[3] = 5;
+
+		TFTPPacket corruptedTFTPPacket = null;
+		try {
+			corruptedTFTPPacket = new TFTPPacket(corruptedBytes, 0, corruptedBytes.length,
+					tftpPacket.getRemoteAddress(), tftpPacket.getRemotePort());
+		} catch (TFTPPacketParsingError e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		return corruptedTFTPPacket;
+	}
+	
 	private TFTPPacket corruptZeroByte(TFTPPacket tftpPacket, int error) {
 		
 		byte[] corruptedBytes = tftpPacket.getPacketBytes();
@@ -569,14 +633,15 @@ public class ErrorSimulator implements Runnable {
 		System.out.println("4. Lose a packet");
 		System.out.println("5. Delay a packet");
 		System.out.println("6. Duplicate a packet");
-		System.out.println("7. Exit");
+		System.out.println("7. Corrupt ERROR packet (error codes 1, 2, 3, 6)");
+		System.out.println("8. Exit");
 		System.out.println("Selection: ");
 
 		int selection = 0;
 		Scanner sc = new Scanner(System.in);
 		selection = sc.nextInt();
 
-		if (selection != 7) {
+		if (selection != 8) {
 			// create server a thread for it listen on
 			proxy = new ErrorSimulator();
 			proxy.errorSelection = selection; // so the errorSimulator knows what to do
@@ -588,25 +653,24 @@ public class ErrorSimulator implements Runnable {
 				System.out.println("2. WRITE");
 				System.out.println("3. DATA");
 				System.out.println("4. ACK");
-				System.out.println("5. Any"); //
-				System.out.println("6. Exit");
+				//System.out.println("5. ERROR");
+				System.out.println("6. Any"); //
+				System.out.println("7. Exit");
 				System.out.println("Selection: ");
 
 				selection = sc.nextInt();
 
 				// shutsdown
-				if (selection == 6) {
+				if (selection == 7) {
 					sc.close();
 					System.exit(0);
 				}
 				// picks random packet
-				else if (selection == 5) {
+				else if (selection == 6) {
 					Random rand = new Random();
 					TFTPPacketType[] types = TFTPPacketType.values();
 					proxy.errorOp = types[rand.nextInt(types.length)];
-					while (proxy.errorOp == TFTPPacketType.ERROR) {
-						proxy.errorOp = types[rand.nextInt(types.length)];
-					}
+					System.out.println("Randomly chose packet of type " + proxy.errorOp);
 				} else {
 					switch (selection) {
 					case 1:
@@ -620,6 +684,9 @@ public class ErrorSimulator implements Runnable {
 						break;
 					case 4:
 						proxy.errorOp = TFTPPacketType.ACK;
+						break;
+					case 5:
+						proxy.errorOp = TFTPPacketType.ERROR;
 						break;
 					default:
 						break;
@@ -657,6 +724,24 @@ public class ErrorSimulator implements Runnable {
 					System.out.println("How long of a delay would you like? (in milliseconds)");
 					selection = sc.nextInt();
 					proxy.delayTime = selection;
+				}
+				if (proxy.errorSelection < 6) {
+					System.out.println("Would you also like to corrupt an ERROR packet?");
+					System.out.println("1. Yes");
+					System.out.println("2. No");
+					selection = sc.nextInt();
+					if (selection == 1) {
+						proxy.corruptErrPacket = true;
+						System.out.println("What would you like to corrupt?");
+						System.out.println("1. OP Code");
+						System.out.println("2. Error Code");
+						System.out.println("3. The Last Zero Byte");
+						selection = sc.nextInt();
+						proxy.corruptErrPacketCorrupt = selection;
+					}
+					else if (selection == 0)
+						proxy.corruptErrPacket = false;
+					
 				}
 			}
 

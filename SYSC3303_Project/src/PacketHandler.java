@@ -127,6 +127,7 @@ public class PacketHandler {
 						String errorMessage = String.format("incorrect ACK packet block number received. Expected: %d, Received: %d", expectedBlockNumber, ackPacket.getBlockNumber());
 						UIManager.printErrorMessage("PacketHandler", errorMessage);
 						errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
+						ackPacket = null;
 					}
 					
 				} catch(TFTPPacketParsingError e) {
@@ -242,6 +243,7 @@ public class PacketHandler {
 					String errorMessage = String.format("incorrect DATA packet block number received. Expected: %d, Received: %d", expectedBlockNumber, dataPacket.getBlockNumber());
 					UIManager.printErrorMessage("PacketHandler", errorMessage);
 					errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
+					dataPacket = null;
 				}
 				
 				String[] messages = {
