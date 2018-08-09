@@ -76,51 +76,6 @@ public class Client {
         
         return requestPacket;
 	}
-	
-	/**
-	 * Creates and writes data to file on hard drive
-	 * 
-	 * @param fileName    name of the file to create and save data to
-	 * @param dataPacket  data packet containing file data
-	 */
-	public void writeToFile(String fileName, DATAPacket dataPacket) {
-    	// creates a file first
-    	FileManager.FileManagerResult fmRes;
-    	if (dataPacket.getBlockNumber() == 1) {
-    		fmRes = fileManager.createFile(fileName);
-    		
-    		if (fmRes.error) {
-    			if (fmRes.accessViolation)
-    				// access violation error will send an error packet with error code 2 and the connection
-    				errorHandler.sendAccessViolationErrorPacket(String.format("write access denied to file: %s", fileName), serverAddress, serverPort);
-    			else if (fmRes.fileAlreadyExist)
-    				// file already exists will send an error packet with error code 6 and close the connection
-    				errorHandler.sendFileExistsErrorPacket(String.format("file already exists: %s", fileName), serverAddress, serverPort);
-    			else if (fmRes.diskFull)
-    				// disk full error will send an error packet with error code 3 and close the connection
-    				errorHandler.sendDiskFullErrorPacket(String.format("Not enough disk space for file: %s", fileName), serverAddress, serverPort);
-    			return;
-    		}
-    	}
-    	
-        // gets the data bytes from the DATA packet and converts it into a string
-    	byte[] fileData = dataPacket.getDataBytes();
-        
-        // write file on client side
-        fmRes = fileManager.writeFile(fileName, fileData);           
-        if (fmRes.error) {
-			if (fmRes.accessViolation)
-				// access violation error will send an error packet with error code 2 and the connection
-				errorHandler.sendAccessViolationErrorPacket(String.format("write access denied to file: %s", fileName), serverAddress, serverPort);
-			else if (fmRes.fileAlreadyExist)
-				// file already exists will send an error packet with error code 6 and close the connection
-				errorHandler.sendFileExistsErrorPacket(String.format("file already exists: %s", fileName), serverAddress, serverPort);
-			else if (fmRes.diskFull)
-				// disk full error will send an error packet with error code 3 and close the connection
-			    errorHandler.sendDiskFullErrorPacket(String.format("Not enough disk space for file: %s", fileName), serverAddress, serverPort);
-			return;
-		}
-	}
    
 	/**
 	* Handle DATA packets received from server with file data
@@ -151,15 +106,51 @@ public class Client {
         	
         	if (expectedBlockNumber == 1)
         		dataPacket = packetHandler.receiveDATAPacket(expectedBlockNumber, requestPacket);
-        	else
+        	else {
         		dataPacket = packetHandler.receiveDATAPacket(expectedBlockNumber);
+        	}
         	
         	// if the returned data packet is null, then an error occurred
         	if (dataPacket == null) {
         		return;
         	}
         	if (dataPacket.getBlockNumber() == expectedBlockNumber) {
-        		writeToFile(fileName, dataPacket);
+        		// creates a file first
+            	FileManager.FileManagerResult fmRes;
+            	if (dataPacket.getBlockNumber() == 1) {
+            		fmRes = fileManager.createFile(fileName);
+            		
+            		if (fmRes.error) {
+            			if (fmRes.accessViolation)
+            				// access violation error will send an error packet with error code 2 and the connection
+            				errorHandler.sendAccessViolationErrorPacket(String.format("write access denied to file: %s", fileName), dataPacket.getRemoteAddress(), dataPacket.getRemotePort());
+            			else if (fmRes.fileAlreadyExist)
+            				// file already exists will send an error packet with error code 6 and close the connection
+            				errorHandler.sendFileExistsErrorPacket(String.format("file already exists: %s", fileName), dataPacket.getRemoteAddress(), dataPacket.getRemotePort());
+            			else if (fmRes.diskFull)
+            				// disk full error will send an error packet with error code 3 and close the connection
+            				errorHandler.sendDiskFullErrorPacket(String.format("Not enough disk space for file: %s", fileName), dataPacket.getRemoteAddress(), dataPacket.getRemotePort());
+            			return;
+            		}
+            	}
+            	
+                // gets the data bytes from the DATA packet and converts it into a string
+            	byte[] fileData = dataPacket.getDataBytes();
+                
+                // write file on client side
+                fmRes = fileManager.writeFile(fileName, fileData);           
+                if (fmRes.error) {
+        			if (fmRes.accessViolation)
+        				// access violation error will send an error packet with error code 2 and the connection
+        				errorHandler.sendAccessViolationErrorPacket(String.format("write access denied to file: %s", fileName), dataPacket.getRemoteAddress(), dataPacket.getRemotePort());
+        			else if (fmRes.fileAlreadyExist)
+        				// file already exists will send an error packet with error code 6 and close the connection
+        				errorHandler.sendFileExistsErrorPacket(String.format("file already exists: %s", fileName), dataPacket.getRemoteAddress(), dataPacket.getRemotePort());
+        			else if (fmRes.diskFull)
+        				// disk full error will send an error packet with error code 3 and close the connection
+        			    errorHandler.sendDiskFullErrorPacket(String.format("Not enough disk space for file: %s", fileName), dataPacket.getRemoteAddress(), dataPacket.getRemotePort());
+        			return;
+        		}
         	
 		        // save the length of the received packet
 		        fileDataLen = dataPacket.getPacketLength();
