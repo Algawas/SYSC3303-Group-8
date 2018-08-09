@@ -90,8 +90,14 @@ public class FileManager {
 		
 		// create a new file if it does not exist
 		try {
-			if (!file.getParentFile().exists())
-				file.getParentFile().mkdirs();
+			if (!file.getParentFile().exists()) {
+				
+				if (!file.getParentFile().mkdirs()) {
+					res.accessViolation = true;
+					res.error = true;
+					return res;
+				}
+			}
 			
 			if (file.exists()) {
 				res.fileAlreadyExist = true;

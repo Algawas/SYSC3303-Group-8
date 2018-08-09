@@ -62,6 +62,22 @@ public class PacketHandler {
 	}
 	
 	/**
+	 * Send read or write request packet
+	 * 
+	 * @param requestPacket
+	 */
+	public void sendReadWriteRequest(RRQWRQPacket requestPacket) {
+		String[] messages = {
+				"",
+				String.format("sending %s to %s:%d", requestPacket.toString(), requestPacket.getRemoteAddress(), requestPacket.getRemotePort())
+		};
+		UIManager.printMessage("PacketHandler", messages);
+		
+		// send DATA datagram packet
+		tftpSocket.send(requestPacket);
+	}
+	
+	/**
 	 * Receives ACK packet and handles error situations
 	 * 
 	 * @param expectedBlockNumber
@@ -77,6 +93,7 @@ public class PacketHandler {
 			try {
 				receivePacket = tftpSocket.receive();
 			} catch (SocketTimeoutException e) {
+				// server timeout code
 				String errorMessage = "Socket timed out. Cannot receive ACK packet";
 				UIManager.printErrorMessage("PacketHandler", errorMessage);	
 				res.timeout = true;
@@ -87,10 +104,12 @@ public class PacketHandler {
 				System.exit(-1);
 			}
 			
+			// record the server thread address and port
 			if (expectedBlockNumber == 0) {
 				remoteAddress = receivePacket.getRemoteAddress();
 				remotePort = receivePacket.getRemotePort();
 			}
+			
 			else {
 				// if the packet was received from another source
 				// then send error packet with error code 5
@@ -127,6 +146,9 @@ public class PacketHandler {
 						String errorMessage = String.format("incorrect ACK packet block number received. Expected: %d, Received: %d", expectedBlockNumber, ackPacket.getBlockNumber());
 						UIManager.printErrorMessage("PacketHandler", errorMessage);
 						errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
+						
+						// discard malformed ack packet
+						ackPacket = null;
 					}
 					
 				} catch(TFTPPacketParsingError e) {
@@ -136,12 +158,14 @@ public class PacketHandler {
 					errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
 				}
 				
-				String[] messages = {
-						"",
-						String.format("received %s from %s:%d", ackPacket.toString(), remoteAddress, remotePort)
-				};
-				
-				UIManager.printMessage("PacketHandler", messages);
+				if (ackPacket != null) {
+					String[] messages = {
+							"",
+							String.format("received %s from %s:%d", ackPacket.toString(), remoteAddress, remotePort)
+					};
+					
+					UIManager.printMessage("PacketHandler", messages);
+				}
 				
 				res.ackPacket = ackPacket;
 			}
@@ -160,6 +184,12 @@ public class PacketHandler {
 				
 				String errorMessage = String.format("received %s from %s:%d", errorPacket.toString(), remoteAddress, remotePort);
 				UIManager.printErrorMessage("PacketHandler", errorMessage);
+			}
+			else if (receivePacket.getPacketType() == TFTPPacketType.WRQ ||
+					receivePacket.getPacketType() == TFTPPacketType.RRQ) {
+				String errorMessage = "duplicate RRQ/WRQ packet received";
+				UIManager.printErrorMessage("PacketHandler", errorMessage);
+				receivePacket = null;
 			}
 			else {
 				// send error packet with error code 4
@@ -189,6 +219,7 @@ public class PacketHandler {
 			try {
 				receivePacket = tftpSocket.receive();
 			} catch (SocketTimeoutException e) {
+				// server timeout code
 				String errorMessage = "Socket timed out. Cannot receive DATA packet";
 				UIManager.printErrorMessage("PacketHandler", errorMessage);	
 				res.timeout = true;
@@ -199,6 +230,7 @@ public class PacketHandler {
 				System.exit(-1);			
 			}
 			
+			// record server thread address and port
 			if (expectedBlockNumber == 1) {
 				remoteAddress = receivePacket.getRemoteAddress();
 				remotePort = receivePacket.getRemotePort();
@@ -235,21 +267,28 @@ public class PacketHandler {
 				if (dataPacket.getBlockNumber() < expectedBlockNumber) {
 					String errorMessage = String.format("duplicate DATA packet block number received. Expected: %d, Received: %d", expectedBlockNumber, dataPacket.getBlockNumber());
 					UIManager.printErrorMessage("PacketHandler", errorMessage);
+					
+					sendACKPacket(dataPacket.getBlockNumber());
 					receivePacket = null;
 					continue;
 				}
 				else if (dataPacket.getBlockNumber() > expectedBlockNumber) {
-					String errorMessage = String.format("incorrect ACK packet block number received. Expected: %d, Received: %d", expectedBlockNumber, dataPacket.getBlockNumber());
+					String errorMessage = String.format("incorrect DATA packet block number received. Expected: %d, Received: %d", expectedBlockNumber, dataPacket.getBlockNumber());
 					UIManager.printErrorMessage("PacketHandler", errorMessage);
 					errorHandler.sendIllegalOperationErrorPacket(errorMessage, remoteAddress, remotePort);
+					
+					// discard malformed data packet
+					dataPacket = null;
 				}
 				
-				String[] messages = {
-						"",
-						String.format("received %s from %s:%d", dataPacket.toString(), remoteAddress, remotePort)
-				};
-				
-				UIManager.printMessage("PacketHandler", messages);
+				if (dataPacket != null) {
+					String[] messages = {
+							"",
+							String.format("received %s from %s:%d", dataPacket.toString(), remoteAddress, remotePort)
+					};
+					
+					UIManager.printMessage("PacketHandler", messages);
+				}
 							
 				res.dataPacket = dataPacket;
 			}
@@ -269,6 +308,12 @@ public class PacketHandler {
 				String errorMessage = String.format("received %s from %s:%d", errorPacket.toString(), remoteAddress, remotePort);
 				UIManager.printErrorMessage("PacketHandler", errorMessage);
 			}
+			else if (receivePacket.getPacketType() == TFTPPacketType.WRQ ||
+					receivePacket.getPacketType() == TFTPPacketType.RRQ) {
+				String errorMessage = "duplicate RRQ/WRQ packet received";
+				UIManager.printErrorMessage("PacketHandler", errorMessage);
+				receivePacket = null;
+			}
 			else {
 				System.out.println(receivePacket.getOPCode());
 				
@@ -282,16 +327,27 @@ public class PacketHandler {
 		return res	;
 	}
 	
+	/**
+	 * Receive data packet given the expected block number
+	 * 
+	 * @param blockNumber expected block number
+	 * @return data packet
+	 */
 	public DATAPacket receiveDATAPacket(short blockNumber) {
 		PacketHandlerReturn phRes = null;
 		
+		// counter to keep track the number of tries
 		int numberOfTries = 1; 
+		
+		// tries for max tries
     	while (numberOfTries < NetworkConfig.MAX_TRIES) {
     		phRes = recDATAPacket(blockNumber);
     		numberOfTries++;
     		
+    		// if no time out is reached don't try to receive data packet again
     		if (!phRes.timeout)
     			break;
+ 
     	}
     	
     	if (numberOfTries == NetworkConfig.MAX_TRIES) {
@@ -301,14 +357,60 @@ public class PacketHandler {
     	return phRes.dataPacket;
 	}
 	
+	/**
+	 * Receive data packet given the request packet
+	 * 
+	 * @param blockNumber    expected block number
+	 * @param requestPacket  request packet to send upon timeout
+	 * @return data packet
+	 */
+	public DATAPacket receiveDATAPacket(short blockNumber, RRQWRQPacket requestPacket) {
+		PacketHandlerReturn phRes = null;
+		
+		// counter to keep track the number of tries
+		int numberOfTries = 1; 
+		
+		// tries for max tries
+    	while (numberOfTries < NetworkConfig.MAX_TRIES) {
+    		phRes = recDATAPacket(blockNumber);
+    		numberOfTries++;
+    		
+    		
+    		if (!phRes.timeout)
+    			// if no time out is reached don't try to receive data packet again
+    			break;
+    		else {
+    			// otherwise send the read or write request again
+    			if (blockNumber == 1) {
+    				sendReadWriteRequest(requestPacket);
+    			}
+    		}
+    	}
+    	
+    	if (numberOfTries == NetworkConfig.MAX_TRIES) {
+    		UIManager.printErrorMessage("PacketHandler", "max tries reached. Exitting connection");
+    	}
+    	
+    	return phRes.dataPacket;
+	}
+	
+	/**
+	 * Receive ACK packet given the expected block number
+	 * @param expectedBlockNumber
+	 * @return ACK packet received
+	 */
 	public ACKPacket receiveACKPacket(short expectedBlockNumber) {
 		PacketHandlerReturn phRes = null;
 		
+		// counter to keep track the number of tries
 		int numberOfTries = 1;
+		
+		// tries for max tries
 		while (numberOfTries < NetworkConfig.MAX_TRIES) {
 			phRes = recACKPacket(expectedBlockNumber);
 			numberOfTries++;
 			
+			// if no time out is reached don't try to receive ack packet again
 			if (!phRes.timeout)
 				break;
 		}
@@ -320,18 +422,59 @@ public class PacketHandler {
 		return phRes.ackPacket;
 	}
 	
+	/**
+	 * Receive ACK packet given DATA packet
+	 * @param    sentDataPacket data packet to re-send upon timeout
+	 * @return   ACK packet received
+	 */
 	public ACKPacket receiveACKPacket(DATAPacket sentDataPacket) {
 		PacketHandlerReturn phRes = null;
 		
+		// counter to keep track the number of tries
 		int numberOfTries = 1;
+		
+		// tries for max tries
 		while (numberOfTries < NetworkConfig.MAX_TRIES) {
 			phRes = recACKPacket(sentDataPacket.getBlockNumber());
 			numberOfTries++;
 			
+			// if no time out is reached don't try to receive ack packet again
 			if (!phRes.timeout)
 				break;
 			else
+				// otherwise send the data packet again
 				sendDATAPacket(sentDataPacket);
+		}
+		
+		if (numberOfTries == NetworkConfig.MAX_TRIES) {
+        	UIManager.printErrorMessage("PacketHandler", "max tries reached. Exitting connection");
+        }
+		
+		return phRes.ackPacket;
+	}
+	
+	/**
+	 * Receive DATA packet given the read or write request packet
+	 * @param  requestPacket
+	 * @return ACK packet received
+	 */
+	public ACKPacket receiveACKPacket(RRQWRQPacket requestPacket) {
+		PacketHandlerReturn phRes = null;
+		
+		// counter to keep track the number of tries
+		int numberOfTries = 1;
+		
+		// tries for max tries
+		while (numberOfTries < NetworkConfig.MAX_TRIES) {
+			phRes = recACKPacket((short) 0);
+			numberOfTries++;
+			
+			// if no time out is reached don't try to receive ack packet again
+			if (!phRes.timeout)
+				break;
+			else
+				// send write or read request packet upon timeout
+				sendReadWriteRequest(requestPacket);
 		}
 		
 		if (numberOfTries == NetworkConfig.MAX_TRIES) {

@@ -5,6 +5,7 @@ import java.util.Queue;
  * This class is used to communicate further with a client that made a WQR request
  */
 public class RRQServerThread extends Thread {
+	private Server server;
 	private TFTPSocket tftpSocket;
 	private TFTPPacket requestPacket;
 	
@@ -22,7 +23,8 @@ public class RRQServerThread extends Thread {
 	 * 
 	 * @param receivedDatagramPacket request datagram packet received from client
 	 */
-	public RRQServerThread(TFTPPacket requestPacket) {
+	public RRQServerThread(Server server, TFTPPacket requestPacket) {
+		this.server = server;
 		this.requestPacket = requestPacket;
 		
 		tftpSocket = new TFTPSocket(NetworkConfig.TIMEOUT_TIME);
@@ -125,5 +127,7 @@ public class RRQServerThread extends Thread {
 		};	
 		UIManager.printMessage("RRQServerThread", messages);
 		tftpSocket.close();
+		
+		server.removeConnection(remoteAddress + ":" + remotePort);
 	}
 }

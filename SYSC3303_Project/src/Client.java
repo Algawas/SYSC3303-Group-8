@@ -31,22 +31,26 @@ public class Client {
 		// create file manager to handle writing and reading files from the hard drive
 		fileManager = new FileManager();
 		
+		// address of the server
 		this.serverAddress = serverAddress;
 		
+		// port of the server
 		this.serverPort = serverPort;
 	}
    
 	/**
 	 * Makes a read or write request
 	 * 
-	 * @param packetType   packet type
-	 * @param fileName     name of the file that is requested to be read or written (in bytes)
-	 * @param mode         mode (in bytes)
+	 * @param packetType   packet type that you wan the function to return
+	 * @param fileName     name of the file that is requested to be read or written
+	 * @param mode         mode
 	 * @param ipAddress    server IP address
 	 * @param port         server port
+	 * 
+	 * @Return read or write request packet
 	 */
-	private void makeReadWriteRequest(TFTPPacketType packetType, String fileName, String mode, InetAddress ipAddress, int port) {
-		TFTPPacket requestPacket = null;
+	private RRQWRQPacket makeReadWriteRequest(TFTPPacketType packetType, String fileName, String mode, InetAddress ipAddress, int port) {
+		RRQWRQPacket requestPacket = null;
 		
 		String verboseMessage = null;
 		if (packetType == TFTPPacketType.RRQ) {
@@ -68,9 +72,17 @@ public class Client {
         		verboseMessage
         }; 
         
-        UIManager.printMessage("Client", messages);        
+        UIManager.printMessage("Client", messages);  
+        
+        return requestPacket;
 	}
 	
+	/**
+	 * Creates and writes data to file on hard drive
+	 * 
+	 * @param fileName    name of the file to create and save data to
+	 * @param dataPacket  data packet containing file data
+	 */
 	public void writeToFile(String fileName, DATAPacket dataPacket) {
     	// creates a file first
     	FileManager.FileManagerResult fmRes;
@@ -121,7 +133,7 @@ public class Client {
 		String fileName = Paths.get(filePath).getFileName().toString();
 		
 		// make a read request and wait for response
-		makeReadWriteRequest(TFTPPacketType.RRQ, fileName, mode, serverAddress, serverPort);
+		RRQWRQPacket requestPacket = makeReadWriteRequest(TFTPPacketType.RRQ, fileName, mode, serverAddress, serverPort);
 		
 		// create a packet handler to handle sending and receiving packets
 		packetHandler = new PacketHandler(tftpSocket, errorHandler, serverAddress, serverPort);
@@ -135,21 +147,28 @@ public class Client {
         int fileDataLen = NetworkConfig.DATAGRAM_PACKET_MAX_LEN;
         while (fileDataLen == NetworkConfig.DATAGRAM_PACKET_MAX_LEN) {
             // receive datagram packet
-        	DATAPacket dataPacket = packetHandler.receiveDATAPacket(expectedBlockNumber);
+        	DATAPacket dataPacket = null;
+        	
+        	if (expectedBlockNumber == 1)
+        		dataPacket = packetHandler.receiveDATAPacket(expectedBlockNumber, requestPacket);
+        	else
+        		dataPacket = packetHandler.receiveDATAPacket(expectedBlockNumber);
         	
         	// if the returned data packet is null, then an error occurred
         	if (dataPacket == null) {
         		return;
         	}
+        	if (dataPacket.getBlockNumber() == expectedBlockNumber) {
+        		writeToFile(fileName, dataPacket);
         	
-        	writeToFile(fileName, dataPacket);
-        	
-	        // save the length of the received packet
-	        fileDataLen = dataPacket.getPacketLength();
+		        // save the length of the received packet
+		        fileDataLen = dataPacket.getPacketLength();
+		        
+		        expectedBlockNumber++;
+        	}
 	        
 	        // send ACK packet
-	        packetHandler.sendACKPacket(expectedBlockNumber);
-	        expectedBlockNumber++;
+	        packetHandler.sendACKPacket(dataPacket.getBlockNumber());
         }
         
         String[] messages = {
@@ -171,12 +190,12 @@ public class Client {
         String fileName = Paths.get(filePath).getFileName().toString();
         
         // make a write request and wait for response
-        makeReadWriteRequest(TFTPPacketType.WRQ, fileName, mode, serverAddress, serverPort);
+        RRQWRQPacket requestPacket = makeReadWriteRequest(TFTPPacketType.WRQ, fileName, mode, serverAddress, serverPort);
         
         // create a packet handler to handle sending and receiving packets
      	packetHandler = new PacketHandler(tftpSocket, errorHandler, serverAddress, serverPort);
      		
-        ACKPacket ackPacket = packetHandler.receiveACKPacket((short) 0);
+        ACKPacket ackPacket = packetHandler.receiveACKPacket(requestPacket);
         
         // if the returned ACK packet is null, then an error occurred
         if (ackPacket == null) {
@@ -259,14 +278,9 @@ public class Client {
 		}
     	int serverPort = NetworkConfig.SERVER_PORT;
     	
-    	String[] options1 = {
-    		"Normal Mode",
-    		"Test Mode"
-    	};
+    	int modeSelection = UIManager.promptForOperationMode();
     	
-    	int selection = UIManager.promptForOperationSelection(options1);
-    	
-    	if (selection == 2) {
+    	if (modeSelection == 2) {
     		serverPort = NetworkConfig.PROXY_PORT;
     	}
     	
@@ -290,6 +304,7 @@ public class Client {
     			"Close client"
     	};
     	
+    	int selection = -1;
     	while (selection != 3) {
 	    	selection = UIManager.promptForOperationSelection(options2);
 	    	

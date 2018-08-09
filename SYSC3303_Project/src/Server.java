@@ -4,6 +4,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.util.HashSet;
 
 /**
  * This class represents a server.
@@ -13,9 +14,12 @@ public class Server implements Runnable {
 	private TFTPSocket tftpSocket;
 	private ErrorHandler errorHandler;
 	
+	private HashSet<String> activeConnections;
+	
 	public Server() {
 		tftpSocket = new TFTPSocket(0, NetworkConfig.SERVER_PORT);
 		errorHandler = new ErrorHandler(tftpSocket);
+		activeConnections = new HashSet<String>();
 	}
 	
 	@Override
@@ -54,39 +58,55 @@ public class Server implements Runnable {
 				continue;
 			}
 			
-			TFTPPacketType packetType = requestPacket.getPacketType();
 			
-			if (packetType == TFTPPacketType.RRQ) {
-				String[] messages1 = {
-						"RRQ request recevied.",
-						String.format("RRQ request recevied from client %s:%d", requestPacket.getRemoteAddress(), requestPacket.getRemotePort())
-				};
-				
-				UIManager.printMessage("Server", messages1);
-				
-				// create a server thread for handling read requests
-				RRQServerThread rrqServerThread = new RRQServerThread(requestPacket);
-				rrqServerThread.start();
-			}
-			else if (packetType == TFTPPacketType.WRQ) {
-				String[] messages1 = {
-						"WRQ request recevied.",
-						String.format("RRQ request recevied from client %s:%d", requestPacket.getRemoteAddress(), requestPacket.getRemotePort())
-				};
-				
-				UIManager.printMessage("Server", messages1);
-				
-				// create a server thread for handling write requests
-				WRQServerThread wrqServerThread = new WRQServerThread(requestPacket);
-				wrqServerThread.start();
+			String clientAddress = requestPacket.getRemoteAddress().toString() + ":" + requestPacket.getRemotePort();
+			if (!activeConnections.contains(clientAddress)) {
+				TFTPPacketType packetType = requestPacket.getPacketType();
+				if (packetType == TFTPPacketType.RRQ) {
+					String[] messages1 = {
+							"RRQ request recevied.",
+							String.format("RRQ request recevied from client %s:%d", requestPacket.getRemoteAddress(), requestPacket.getRemotePort())
+					};
+					
+					UIManager.printMessage("Server", messages1);
+					
+					activeConnections.add(clientAddress);
+					
+					// create a server thread for handling read requests
+					RRQServerThread rrqServerThread = new RRQServerThread(this, requestPacket);
+					rrqServerThread.start();
+				}
+				else if (packetType == TFTPPacketType.WRQ) {
+					String[] messages1 = {
+							"WRQ request recevied.",
+							String.format("RRQ request recevied from client %s:%d", requestPacket.getRemoteAddress(), requestPacket.getRemotePort())
+					};
+					
+					UIManager.printMessage("Server", messages1);
+					
+					activeConnections.add(clientAddress);
+					
+					// create a server thread for handling write requests
+					WRQServerThread wrqServerThread = new WRQServerThread(this, requestPacket);
+					wrqServerThread.start();
+				}
+				else {
+					UIManager.printErrorMessage("Server", "invalid request packet");
+					errorHandler.sendIllegalOperationErrorPacket("cannot parse TFTP packet", requestPacket.getRemoteAddress(), requestPacket.getRemotePort());
+				}
 			}
 			else {
-				UIManager.printErrorMessage("Server", "invalid request packet");
-				errorHandler.sendIllegalOperationErrorPacket("cannot parse TFTP packet", requestPacket.getRemoteAddress(), requestPacket.getRemotePort());
+				UIManager.printErrorMessage("Server", "duplicate request packet recieved. connection already in use");
 			}
 		}
 		
 		tftpSocket.close();
+	}
+	
+	public synchronized void removeConnection(String clientAddress) {
+		if (activeConnections.contains(clientAddress)) {
+			activeConnections.remove(clientAddress);
+		}
 	}
 	
 	public void shutdown() {
@@ -157,20 +177,21 @@ public class Server implements Runnable {
 			return;
 		}
 		
-		String[] options2 = {
-    			"Close server",
-    	};
 		
-		selection = UIManager.promptForOperationSelection(options2);
+		String quitCommand = "";
 		
-		if (selection == 1) {
-			server.shutdown();
-			try {
-				serverThread.join(1000);
-			} catch (InterruptedException e) {
-				UIManager.printErrorMessage("Server", "cannot close server thread");
-				e.printStackTrace();
-				System.exit(-1);
+		while (!quitCommand.equals("quit")) {
+			quitCommand = UIManager.promptForQuit();
+			
+			if (quitCommand.equals("quit")) {
+				server.shutdown();
+				try {
+					serverThread.join(1000);
+				} catch (InterruptedException e) {
+					UIManager.printErrorMessage("Server", "cannot close server thread");
+					e.printStackTrace();
+					System.exit(-1);
+				}
 			}
 		}
 		
