@@ -14,10 +14,13 @@ public class UIManager {
 	 * @param messages
 	 */
 	public static void printMessage(String className, String[] messages) {
-		if (!verboseMode)
+		if (verboseMode)
 			System.out.println(String.format("VERBOSE: %s - %s", className, messages[1]));
-		else
-			System.out.println(String.format("NORMAL: %s - %s", className, messages[0]));
+		else 
+		{	
+			if (!messages[0].equals(""))
+				System.out.println(String.format("NORMAL: %s - %s", className, messages[0]));
+		}
 		
 	}
 	
@@ -43,9 +46,9 @@ public class UIManager {
 		int selection = UIManager.promptForOperationSelection(options);
 		
 		if (selection == 1)
-			verboseMode = true;
-		else
 			verboseMode = false;
+		else
+			verboseMode = true;
 	}
 	
 	/**

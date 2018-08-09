@@ -159,6 +159,11 @@ public class FileManager {
 			if (e.getMessage().contains("Permission denied"))
 				res.accessViolation = true;
 			
+            // Check error message to see if the error is about disk full
+            if (e.getMessage().contains("not enough space") || e.getMessage().contains("Not enough space")
+                    || e.getMessage().contains("No space left"))
+                res.diskFull = true;
+			
 			// set error flag
 			res.error = true;
 		}
